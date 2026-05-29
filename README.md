@@ -1,6 +1,8 @@
 # Total Replay — Web Console
 
-Flask dashboard for [Splunk TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) and [attack_data](https://github.com/splunk/attack_data). Connect to a remote lab over SSH, browse detections and datasets, run attack replays, and send events to Splunk HEC.
+**Repository:** [github.com/threathawk/TotalReplay-UI](https://github.com/threathawk/TotalReplay-UI)
+
+Flask dashboard for [Splunk TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) and [attack_data](https://github.com/splunk/attack_data). Connect to a remote lab over SSH, browse detections, run attack replays, and send events to Splunk HEC.
 
 ## Features
 
