@@ -1,96 +1,266 @@
-# Total Replay — Web Console
+<p align="center">
+  <img src="docs/logo.svg" alt="TotalReplay UI Logo" width="1040"/>
+</p>
 
-**Repository:** [github.com/threathawk/TotalReplay-UI](https://github.com/threathawk/TotalReplay-UI)
+<h1 align="center">TotalReplay UI</h1>
 
-Flask dashboard for [Splunk TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) and [attack_data](https://github.com/splunk/attack_data). Connect to a remote lab over SSH, browse detections, run attack replays, and send events to Splunk HEC.
+<p align="center">
+  <strong>A professional web console for ~2000 Splunk attack simulation — browse detections, replay attacks, and stream results in one place.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/threathawk/TotalReplayUI/stargazers"><img src="https://img.shields.io/github/stars/threathawk/TotalReplayUI?style=flat-square&color=00d4ff&labelColor=0d1117" alt="Stars"/></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8%2B-00d4ff?style=flat-square&labelColor=0d1117&logo=python&logoColor=white" alt="Python 3.8+"/></a>
+  <img src="https://img.shields.io/badge/Splunk-HEC%20%7C%20REST-00d4ff?style=flat-square&labelColor=0d1117" alt="Splunk"/>
+  <img src="https://img.shields.io/badge/SSH-Remote%20Lab-00d4ff?style=flat-square&labelColor=0d1117" alt="SSH"/>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#screenshots">Screenshots</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#security">Security</a> •
+  <a href="#contributing">Contributing</a>
+</p>
+
+---
+
+## Overview
+
+**TotalReplay UI** is a Flask-powered web console that brings a clean, dark-themed dashboard to [Splunk TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) and [attack_data](https://github.com/splunk/attack_data). Designed for blue teamers, detection engineers, and SOC analysts who need to quickly replay real-world attack data against their Splunk environment and validate detections.
+
+Whether your lab is local or remote, TotalReplay UI abstracts the CLI complexity into a single, intuitive browser interface — complete with live log streaming, MITRE ATT&CK metadata, index mapping, and replay history.
+
+---
 
 ## Features
 
-- **Local mode** — Browse `security_content` detections and `attack_data` on the machine running this app. Run `total_replay.py` locally (same host as the web UI) or send events via HEC from the web app.
-- **Remote mode (SSH)** — Connect to a server where TOTAL-REPLAY, attack_data, and security_content are installed; list catalog over SSH; run `total_replay.py` on the remote host or pull logs and post via HEC from the web app.
-- **Attack Test panel** — Multi-select replay detections; live log streaming (SSE); MITRE and use-case metadata in the catalog.
-- **Delivery methods**
-  - *Local TOTAL-REPLAY CLI* — Runs `total_replay.py` on the machine where the web app runs (local mode).
-  - *Remote TOTAL-REPLAY CLI* — Same, but over SSH on a lab server (remote mode).
-  - *Web UI HEC* — Reads or downloads attack logs and posts to Splunk from this app (local paths, SSH fetch, or HTTP URLs).
-- Optional **SSH tunnel** for HEC when Splunk is only reachable through the same SSH host.
-- **Index Map** — Sync Splunk index/sourcetype inventory via `tstats`, map detection sourcetypes to target indexes, and route replays away from the default `test` index.
-- Replay logs (SQLite history).
+### Attack Simulation
+- **Attack Catalog** — Browse hundreds of Splunk security_content detections with MITRE ATT&CK IDs, tactics, use cases, and sourcetypes
+- **Multi-Select Replay** — Select multiple detections and run them sequentially or in parallel
+- **Live Output Streaming** — Real-time SSE log streaming so you watch replays execute as they happen
+- **Flexible Delivery** — Choose how attack data reaches Splunk: local CLI, remote SSH CLI, or Web HEC push
 
-## Install
+### Lab Connectivity
+- **Local Mode** — Runs `total_replay.py` on the same machine as the web UI; ideal for single-host labs
+- **Remote SSH Mode** — Connects to a lab VM over SSH; browses the remote catalog and runs replays on the remote host
+- **SSH Tunnel for HEC** — Optionally tunnel HEC traffic through the SSH connection when Splunk is only reachable inside the lab network
+
+### Index Intelligence
+- **Index Planner** — Syncs Splunk index/sourcetype inventory via `tstats`; 3-step waterfall to map replay sourcetypes to correct target indexes
+- **Auto-matching** — Automatically pairs detection sourcetypes with live Splunk inventory
+- **Manual Override** — Set per-sourcetype index mappings that take priority over auto-match
+
+### Operations
+- **Replay Logs** — SQLite-backed history of every replay job: status, index, event count, and one-click rerun
+- **Settings Panel** — Full configuration of paths, SSH credentials, Splunk HEC & Management API tokens, all in-browser
+- **Config Load** — Populate paths automatically by reading the remote or local `config.yml`
+
+---
+
+## Screenshots
+
+### Attack Test — Browse & Replay Detections
+![Attack Test](docs/screenshot-attack-test.png)
+
+> Search by detection name, MITRE ID, tactic, or sourcetype. Select multiple detections and replay them with live output streaming.
+
+### Index Planner — Sourcetype → Index Routing
+![Index Planner](docs/screenshot-index-planner.png)
+![Index Planner](docs/screenshot-index-planner-2.png)
+![Index Planner](docs/screenshot-index-planner-3.png)
+
+> Sync your Splunk index/sourcetype inventory, build routes, and route replays to the right index automatically.
+
+### Logs — Replay History
+![Logs](docs/screenshot-logs.png)
+![Logs](docs/screenshot-logs-1.png)
+
+> View past replay jobs with status, delivery method, event count, and rerun capability.
+
+### Settings — SSH & Splunk Configuration
+![Settings](docs/screenshot-settings.png)
+
+> Configure local or remote (SSH) data sources, Splunk HEC tokens, and Management API credentials.
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+| Requirement | Version |
+|------------|---------|
+| Python | 3.8+ |
+| [TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) | Latest |
+| [attack_data](https://github.com/splunk/attack_data) | Latest |
+| [security_content](https://github.com/splunk/security_content) | Latest |
+| Splunk | 8.x / 9.x with HEC enabled |
+
+### Installation
 
 ```bash
-cd totalreplay-ui
+# 1. Clone the repository
+git clone https://github.com/threathawk/TotalReplayUI.git
+cd TotalReplayUI
+
+# 2. Create and activate a virtual environment
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Linux/macOS
+# .venv\Scripts\activate.bat   # Windows
+
+# 3. Install dependencies
 pip install -r requirements.txt
+
+# 4. Configure the app
 cp data/config.json.example data/config.json
-# Edit data/config.json with your Splunk and path settings
+# Edit data/config.json with your settings (see Configuration below)
+
+# 5. Launch
 python app.py
 ```
 
-Open http://localhost:5055 (listens on `0.0.0.0:5055` for LAN access).
+Open **http://localhost:5055** in your browser. The server binds to `0.0.0.0:5055` for LAN access.
 
-## Local setup (TOTAL-REPLAY on this machine)
+---
 
-1. Clone [attack_data](https://github.com/splunk/attack_data) and [security_content](https://github.com/splunk/security_content); install TOTAL-REPLAY per [upstream readme](https://github.com/splunk/attack_data/blob/master/total_replay/readme.md).
-2. In **Settings** choose **Local filesystem**.
-3. Set **TOTAL-REPLAY directory** (e.g. `/opt/attack_data/total_replay`) or only **attack_data path** (auto-detects `total_replay/` underneath).
-4. Click **Load paths from local configuration/config.yml** to fill security_content and attack_data paths.
-5. Set **Splunk host**, **HEC token**, and **Default delivery method** → *Run TOTAL-REPLAY on this machine (local CLI)*.
-6. On **Attack Test**, pick detections and run (sequential option supported).
+## Configuration
 
-Splunk must be reachable from this machine when using local CLI (`SPLUNK_HOST` / `SPLUNK_HEC_TOKEN` are passed into `total_replay.py`).
+### Local Setup (TOTAL-REPLAY on this machine)
 
-## Remote server setup
+1. Clone [attack_data](https://github.com/splunk/attack_data) and [security_content](https://github.com/splunk/security_content) on this host.
+2. Install TOTAL-REPLAY per the [upstream readme](https://github.com/splunk/attack_data/tree/master/total_replay).
+3. In **Settings**, choose **Local filesystem**.
+4. Set the TOTAL-REPLAY directory (e.g. `/opt/attack_data/total_replay`).
+5. Click **Load paths from local configuration/config.yml** to auto-fill `security_content` and `attack_data` paths.
+6. Set your Splunk host, HEC token, and default delivery method to **Run TOTAL-REPLAY on this machine (local CLI)**.
 
-On your lab VM ([attack_data](https://github.com/splunk/attack_data) + [security_content](https://github.com/splunk/security_content)):
+> Splunk must be reachable from this machine when using local CLI mode.
 
-1. Clone repos and install TOTAL-REPLAY per [upstream readme](https://github.com/splunk/attack_data/blob/master/total_replay/readme.md) (`poetry install` in `total_replay/`).
-2. Edit `total_replay/configuration/config.yml` with paths to detections and attack_data.
-3. Ensure Splunk HEC is enabled (port 8088) and the token can write to your test index.
+### Remote Server Setup (SSH Lab)
 
-In the web UI **Settings**:
+**On your lab VM** (where `attack_data` + `security_content` live):
 
-1. Choose **Remote server (SSH)**.
-2. Set **TOTAL-REPLAY directory** (e.g. `/opt/attack_data/total_replay`).
-3. Enter **SSH host**, user, and password or private key path (on the machine running the web app).
-4. Click **Load paths from remote configuration/config.yml** or **Test SSH**.
-5. Set **Splunk host** to the address reachable from the *replay origin* (remote server for CLI mode, or your network for HEC + tunnel).
-6. Save **HEC token** and **Test Splunk HEC**.
+```bash
+# Clone repos and install TOTAL-REPLAY
+poetry install        # inside total_replay/
 
-## Index Planner (Splunk inventory + sourcetype routing)
+# Edit total_replay/configuration/config.yml with correct paths
+```
 
-All index/sourcetype work is in the **Index Planner** tab (replaces separate Index Map / Sourcetypes tabs).
+**In the web UI Settings:**
 
-1. **Settings** — HEC token, Management API token (8089), **Test REST API**, HTTPS for 8089 if needed.
-2. **Index Planner** waterfall:
-   - **Step 1** — **Sync Splunk** (tstats index/sourcetype inventory).
-   - **Step 2** — **Build routes** (extract replay detection sourcetypes, compare to Splunk).
-   - **Step 3** — Pick **Target index** from the searchable Splunk index dropdown → **Save map**. Waterfall: manual map → Splunk inventory → default index.
-2. **Attack Test** — select detections and run; index mapping applies when enabled in **Settings**.
+| Field | Value |
+|-------|-------|
+| Data source | Remote server (SSH) |
+| TOTAL-REPLAY directory | e.g. `/opt/attack_data/total_replay` |
+| SSH host | Lab VM IP or hostname |
+| SSH user | Remote username |
+| SSH auth | Password or private key path |
+| Splunk host | Address reachable from replay origin |
+| HEC token | Your Splunk HEC token |
 
-Routing priority: **saved manual map** → **Splunk REST inventory** → **Settings default index**.
+Click **Test SSH** and **Test Splunk HEC** to validate before running replays.
 
-## Attack Test workflow
+### data/config.json Reference
 
-1. Open **Attack Test** → **Refresh** to load the catalog.
-2. Search by detection name, use case, MITRE ID, tactic, or sourcetype.
-3. Select attacks, set **Splunk index** and **Delivery method**.
-4. Click **Run selected attacks** and watch **Live output**.
+```json
+{
+  "mode": "remote",
+  "total_replay_dir": "/opt/attack_data/total_replay",
+  "security_content_path": "/opt/security_content/detections",
+  "attack_data_path": "/opt/attack_data",
+  "splunk_host": "192.168.100.63",
+  "splunk_hec_port": 8088,
+  "splunk_hec_token": "your-hec-token-here",
+  "splunk_default_index": "test",
+  "ssh_host": "192.168.100.56",
+  "ssh_port": 22,
+  "ssh_user": "root",
+  "ssh_key_path": "/home/user/.ssh/id_rsa",
+  "delivery_method": "remote_cli"
+}
+```
 
-Index mapping runs automatically when enabled in **Settings** (no extra routing UI on Attack Test).
+> ⚠️ **Never commit `data/config.json`** — it contains credentials. It is already in `.gitignore`.
 
-## Logs
+---
 
-The **Logs** tab shows replay history: status, index, item count, and rerun from a past job.
+## Architecture
 
-## Security notes
+```
+TotalReplayUI/
+├── app.py                   # Flask application entry point & routes
+├── detection_inventory.py   # Parses security_content detection catalog
+├── local_replay.py          # Runs total_replay.py locally (subprocess)
+├── remote_client.py         # SSH client (Paramiko) for remote labs
+├── index_mapping.py         # Sourcetype → index routing logic
+├── route_planner.py         # Index Planner: Splunk tstats + auto-match
+├── splunk_client.py         # Splunk REST API client (management port 8089)
+├── splunk_transport.py      # HEC event posting (local, SSH fetch, HTTP)
+├── ssh_tunnel.py            # Optional SSH tunnel for HEC
+├── total_replay_cli.py      # CLI wrapper helpers
+├── data/
+│   ├── config.json.example  # Config template (safe to commit)
+│   ├── config.json          # Live config with credentials (gitignored)
+│   └── totalreplay.db       # SQLite replay history
+├── templates/               # Jinja2 HTML templates
+└── docs/                    # Logo and screenshots
+```
 
-- HEC token, management API token (8089), and SSH password are stored in plaintext at `data/config.json`. **Do not commit this file** — copy from `data/config.json.example` locally. Restrict file permissions and rotate credentials in production.
-- SQLite database: `data/totalreplay.db`.
+### Delivery Methods
+
+| Method | Description |
+|--------|-------------|
+| **Local CLI** | Runs `total_replay.py` on the machine hosting the web UI |
+| **Remote CLI (SSH)** | Runs `total_replay.py` on the lab VM over SSH |
+| **Web UI HEC** | Fetches attack logs (local path, SSH, or HTTP) and POSTs to Splunk HEC from the web UI |
+
+### Index Routing Waterfall
+
+```
+Manual map (saved in config) → Splunk REST inventory → Settings default index
+```
+
+---
+
+## Security
+
+> TotalReplay UI is designed for **isolated lab environments**. Review these notes before deploying.
+
+- **Credentials at rest** — HEC token, management API token, and SSH password are stored in plaintext in `data/config.json`. Restrict file permissions (`chmod 600 data/config.json`) and rotate credentials regularly.
+- **Network exposure** — The app binds to `0.0.0.0:5055` by default. Restrict with a firewall or change the bind address in `app.py` for production use.
+- **No authentication** — The web UI has no built-in login. Place it behind a VPN, SSH tunnel, or reverse proxy with auth if exposing beyond localhost.
+- **SQLite database** — Replay history is stored in `data/totalreplay.db`. Keep this file private.
+
+---
 
 ## References
 
-- [TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay)
-- [attack_data](https://github.com/splunk/attack_data/tree/master)
+- [Splunk TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) — The upstream CLI replay engine
+- [attack_data](https://github.com/splunk/attack_data) — Splunk's curated attack dataset repository
+- [security_content](https://github.com/splunk/security_content) — Splunk's detection catalog (ESCU)
+- [MITRE ATT&CK](https://attack.mitre.org/) — Adversary tactics and techniques framework
+
+---
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome!
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m 'Add some feature'`
+4. Push to the branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+Please open an issue first to discuss significant changes.
+
+---
+
+<p align="center">
+  Built for the Splunkers by Splunker</p></br>
+  <sub>TotalReplay UI · <a href="https://github.com/threathawk/TotalReplayUI">github.com/threathawk/TotalReplayUI</a></sub>
+</p>
