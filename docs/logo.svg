@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <!-- Deep cinematic background gradient -->
+    <radialGradient id="bgRadial" cx="50%" cy="55%" r="75%">
+      <stop offset="0%" stop-color="#0a1929"/>
+      <stop offset="55%" stop-color="#050b14"/>
+      <stop offset="100%" stop-color="#01030a"/>
+    </radialGradient>
+
+    <!-- Subtle vignette -->
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset="60%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.85"/>
+    </radialGradient>
+
+    <!-- Cyan glow filter for accents -->
+    <filter id="cyanGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="strongGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="textGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Shield gradient -->
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d2840"/>
+      <stop offset="100%" stop-color="#061523"/>
+    </linearGradient>
+
+    <!-- Cyan stroke gradient -->
+    <linearGradient id="cyanLine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="50%" stop-color="#00b8d4"/>
+      <stop offset="100%" stop-color="#0091a7"/>
+    </linearGradient>
+
+    <!-- Bolt gradient -->
+    <linearGradient id="boltGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#aff7ff"/>
+      <stop offset="50%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#0099b8"/>
+    </linearGradient>
+
+    <!-- Grid pattern -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0a3a4a" stroke-width="0.5" opacity="0.4"/>
+    </pattern>
+
+    <!-- Diagonal scan lines -->
+    <pattern id="scanlines" width="3" height="3" patternUnits="userSpaceOnUse">
+      <rect width="3" height="1" fill="#00e5ff" opacity="0.025"/>
+    </pattern>
+
+    <!-- Title text gradient -->
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#b8d4dd"/>
+    </linearGradient>
+
+    <linearGradient id="replayGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5eeaff"/>
+      <stop offset="100%" stop-color="#00b8d4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Base background -->
+  <rect width="1280" height="640" fill="url(#bgRadial)"/>
+
+  <!-- Grid overlay -->
+  <rect width="1280" height="640" fill="url(#grid)"/>
+
+  <!-- Scanlines -->
+  <rect width="1280" height="640" fill="url(#scanlines)"/>
+
+  <!-- Atmospheric light beams from top-left -->
+  <g opacity="0.35">
+    <polygon points="0,0 600,0 200,640 0,640" fill="#00e5ff" opacity="0.04"/>
+    <polygon points="0,0 350,0 100,640 0,640" fill="#00e5ff" opacity="0.06"/>
+  </g>
+
+  <!-- Decorative corner brackets -->
+  <g stroke="#00b8d4" stroke-width="2" fill="none" opacity="0.6">
+    <!-- Top left -->
+    <path d="M 40 60 L 40 40 L 60 40"/>
+    <!-- Top right -->
+    <path d="M 1220 40 L 1240 40 L 1240 60"/>
+    <!-- Bottom left -->
+    <path d="M 40 580 L 40 600 L 60 600"/>
+    <!-- Bottom right -->
+    <path d="M 1220 600 L 1240 600 L 1240 580"/>
+  </g>
+
+  <!-- Tech detail: top-right window dots -->
+  <g transform="translate(1170, 50)">
+    <circle cx="0" cy="0" r="4" fill="#00e5ff" opacity="0.7"/>
+    <circle cx="16" cy="0" r="4" fill="#00b8d4" opacity="0.5"/>
+    <circle cx="32" cy="0" r="4" fill="#0091a7" opacity="0.35"/>
+  </g>
+
+  <!-- Tech detail: top-left ID strip -->
+  <g transform="translate(80, 55)" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#00b8d4" opacity="0.55" letter-spacing="2">
+    <text x="0" y="0">SYS://TR.SIM.v2</text>
+    <line x1="0" y1="8" x2="180" y2="8" stroke="#00b8d4" stroke-width="0.5" opacity="0.6"/>
+  </g>
+
+  <!-- Tech detail: bottom strip with mock telemetry -->
+  <g transform="translate(80, 575)" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#5eeaff" opacity="0.5" letter-spacing="1.5">
+    <text x="0" y="0">[ OK ]  ENGINE READY   ·   NODES 24/24   ·   LAT 12ms   ·   THROUGHPUT 1.8K/s</text>
+  </g>
+
+  <!-- ============ SHIELD LOGO ============ -->
+  <g transform="translate(200, 320)" filter="url(#strongGlow)">
+    <!-- Outer shield glow base -->
+    <path d="M 0 -130
+             L 100 -100
+             L 100 30
+             Q 100 90 0 140
+             Q -100 90 -100 30
+             L -100 -100 Z"
+          fill="url(#shieldGrad)"
+          stroke="url(#cyanLine)"
+          stroke-width="3"/>
+
+    <!-- Inner shield outline -->
+    <path d="M 0 -110
+             L 82 -85
+             L 82 25
+             Q 82 78 0 120
+             Q -82 78 -82 25
+             L -82 -85 Z"
+          fill="none"
+          stroke="#00e5ff"
+          stroke-width="1.5"
+          opacity="0.5"/>
+
+    <!-- Lightning bolt -->
+    <path d="M 15 -65
+             L -25 10
+             L -2 10
+             L -18 65
+             L 28 -15
+             L 5 -15
+             L 22 -65 Z"
+          fill="url(#boltGrad)"
+          stroke="#aff7ff"
+          stroke-width="1"
+          filter="url(#cyanGlow)"/>
+  </g>
+
+  <!-- ============ TITLE TEXT ============ -->
+  <g font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-weight="900">
+    <!-- TOTAL -->
+    <text x="380" y="290"
+          font-size="120"
+          fill="url(#titleGrad)"
+          letter-spacing="6"
+          filter="url(#textGlow)">TOTAL</text>
+
+    <!-- REPLAY -->
+    <text x="380" y="420"
+          font-size="120"
+          fill="url(#replayGrad)"
+          letter-spacing="6"
+          filter="url(#textGlow)">REPLAY</text>
+  </g>
+
+  <!-- Subtitle -->
+  <g transform="translate(385, 470)">
+    <line x1="0" y1="0" x2="50" y2="0" stroke="#00e5ff" stroke-width="2"/>
+    <text x="65" y="5"
+          font-family="'Inter', 'Segoe UI', system-ui, sans-serif"
+          font-size="22"
+          font-weight="500"
+          fill="#8aa8b3"
+          letter-spacing="8">ATTACK SIMULATION CONSOLE</text>
+  </g>
+
+  <!-- ============ STATUS BADGE ============ -->
+  <g transform="translate(385, 510)">
+    <!-- Status pill: ACTIVE -->
+    <g>
+      <rect x="0" y="0" width="125" height="32" rx="16"
+            fill="#001a14" stroke="#00ff9d" stroke-width="1.5"/>
+      <circle cx="18" cy="16" r="5" fill="#00ff9d" filter="url(#cyanGlow)">
+        <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <text x="32" y="21"
+            font-family="ui-monospace, 'SF Mono', Menlo, monospace"
+            font-size="13"
+            font-weight="700"
+            fill="#00ff9d"
+            letter-spacing="2">ACTIVE</text>
+    </g>
+
+    <!-- Version pill -->
+    <g transform="translate(140, 0)">
+      <rect x="0" y="0" width="90" height="32" rx="16"
+            fill="#001824" stroke="#00b8d4" stroke-width="1.5"/>
+      <text x="14" y="21"
+            font-family="ui-monospace, 'SF Mono', Menlo, monospace"
+            font-size="13"
+            font-weight="700"
+            fill="#5eeaff"
+            letter-spacing="1.5">v2.0.1</text>
+    </g>
+
+    <!-- Build pill -->
+    <g transform="translate(245, 0)">
+      <rect x="0" y="0" width="115" height="32" rx="16"
+            fill="#0a0a14" stroke="#5a6470" stroke-width="1.5"/>
+      <text x="14" y="21"
+            font-family="ui-monospace, 'SF Mono', Menlo, monospace"
+            font-size="13"
+            font-weight="600"
+            fill="#a0adb8"
+            letter-spacing="1.5">BUILD #847</text>
+    </g>
+  </g>
+
+  <!-- Vignette overlay -->
+  <rect width="1280" height="640" fill="url(#vignette)" pointer-events="none"/>
+
+  <!-- Subtle top edge highlight -->
+  <line x1="0" y1="0" x2="1280" y2="0" stroke="#00e5ff" stroke-width="2" opacity="0.4"/>
+  <!-- Subtle bottom edge -->
+  <line x1="0" y1="639" x2="1280" y2="639" stroke="#00e5ff" stroke-width="1" opacity="0.25"/>
+</svg>
