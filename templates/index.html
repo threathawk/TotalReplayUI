@@ -1,0 +1,2172 @@
+<!doctype html>
+<html lang="en-US" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" content="notranslate">
+  <title>Total Replay</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              bg: "#070b14",
+              panel: "#0d1321",
+              card: "#111827",
+              border: "#1e293b",
+              text: "#e2e8f0",
+              muted: "#94a3b8",
+              accent: "#22d3ee",
+              accent2: "#3b82f6",
+              danger: "#f87171",
+              success: "#34d399",
+            },
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      --cyber-accent: #22d3ee;
+      --cyber-accent-dim: #0891b2;
+      --cyber-glow: rgba(34, 211, 238, 0.25);
+      --cyber-radius: 10px;
+      --cyber-radius-lg: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #070b14;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.12), transparent),
+        linear-gradient(rgba(30, 41, 59, 0.4) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 41, 59, 0.4) 1px, transparent 1px);
+      background-size: 100% 100%, 48px 48px, 48px 48px;
+    }
+    .mono {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .log-line { white-space: pre-wrap; word-break: break-word; }
+    .global-nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(7, 11, 20, 0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid #1e293b;
+      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+    .tab {
+      color: #94a3b8; font-size: 12px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 0 12px; height: 48px;
+      display: inline-flex; align-items: center;
+      border-bottom: 2px solid transparent; transition: all .2s;
+    }
+    .tab:hover { color: #e2e8f0; }
+    .tab-active { color: #22d3ee !important; border-color: #22d3ee !important; }
+    .tab-inactive { color: #94a3b8; border-color: transparent; }
+    .apple-card {
+      background: linear-gradient(145deg, #111827 0%, #0d1321 100%);
+      border-radius: var(--cyber-radius-lg);
+      border: 1px solid #1e293b;
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.05), 0 8px 32px rgba(0,0,0,.35);
+    }
+    .apple-input, .apple-select {
+      width: 100%; border: 1px solid #334155; border-radius: 8px;
+      padding: 10px 14px; font-size: 14px; color: #e2e8f0;
+      background: #0a0f1a; transition: border-color .2s, box-shadow .2s;
+    }
+    .apple-input:focus, .apple-select:focus {
+      outline: none; border-color: var(--cyber-accent);
+      box-shadow: 0 0 0 3px var(--cyber-glow);
+    }
+    .apple-label {
+      display: block; font-size: 11px; font-weight: 600;
+      color: #94a3b8; margin-bottom: 6px; text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0891b2, #22d3ee);
+      color: #0f172a; border: none; border-radius: 8px;
+      padding: 12px 22px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all .2s; width: 100%;
+      box-shadow: 0 0 20px var(--cyber-glow);
+    }
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-secondary {
+      background: transparent; color: #22d3ee;
+      border: 1px solid #334155; border-radius: 8px;
+      padding: 10px 18px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .btn-secondary:hover { border-color: #22d3ee; background: rgba(34,211,238,.08); }
+    .btn-ghost {
+      background: transparent; color: #22d3ee; border: none;
+      font-size: 12px; font-weight: 500; cursor: pointer; padding: 4px 0;
+    }
+    .btn-ghost:hover { color: #67e8f9; }
+    .segmented {
+      display: inline-flex; background: #0a0f1a; border-radius: 8px;
+      padding: 3px; gap: 2px; border: 1px solid #334155;
+    }
+    .segmented .mode-btn {
+      border: none; background: transparent; color: #94a3b8;
+      font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 6px;
+      cursor: pointer; transition: all .2s;
+    }
+    .segmented .mode-btn.active {
+      background: #1e293b; color: #22d3ee;
+      box-shadow: 0 0 12px var(--cyber-glow);
+    }
+    .badge {
+      display: inline-flex; align-items: center; font-size: 10px; font-weight: 700;
+      padding: 4px 10px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .badge-gray { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    .badge-blue { background: rgba(34,211,238,.15); color: #22d3ee; border: 1px solid rgba(34,211,238,.3); }
+    .badge-green { background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }
+    .catalog-scroll {
+      max-height: 420px; overflow-y: auto; border-radius: 8px;
+      border: 1px solid #1e293b; background: #0a0f1a;
+    }
+    .catalog-scroll::-webkit-scrollbar { width: 6px; }
+    .catalog-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .catalog-row {
+      display: flex; gap: 12px; padding: 12px 16px;
+      border-bottom: 1px solid #1e293b; cursor: pointer;
+      transition: background .15s;
+    }
+    .catalog-row:hover { background: rgba(34, 211, 238, 0.06); }
+    .catalog-row input[type=checkbox] {
+      width: 18px; height: 18px; margin-top: 2px; accent-color: var(--apple-link);
+    }
+    .terminal-panel {
+      background: #030712; border-radius: var(--cyber-radius-lg);
+      color: #cbd5e1; padding: 20px 24px;
+      border: 1px solid #1e293b;
+      box-shadow: inset 0 0 40px rgba(34, 211, 238, 0.03);
+    }
+    .data-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+    .data-table th {
+      text-align: left; padding: 10px 12px; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px;
+      border-bottom: 1px solid #1e293b; background: #0a0f1a;
+    }
+    .data-table td {
+      padding: 10px 12px; border-bottom: 1px solid #1e293b; color: #cbd5e1;
+    }
+    .rp-index-combo { position: relative; min-width: 150px; }
+    .rp-index-combo-input { font-family: ui-monospace, monospace; font-size: 11px !important; }
+    .rp-index-combo-menu {
+      position: absolute; z-index: 50; left: 0; right: 0; top: calc(100% + 2px);
+      max-height: 220px; overflow-y: auto;
+      background: #0d1321; border: 1px solid #334155; border-radius: 8px;
+      box-shadow: 0 12px 32px rgba(0,0,0,.55);
+    }
+    .rp-index-combo-menu.hidden { display: none; }
+    .index-combo-opt {
+      display: block; width: 100%; text-align: left; padding: 8px 10px;
+      font-size: 11px; font-family: ui-monospace, monospace; color: #e2e8f0;
+      background: transparent; border: none; cursor: pointer;
+    }
+    .index-combo-opt:hover, .index-combo-opt:focus {
+      background: rgba(34,211,238,.12); color: #22d3ee; outline: none;
+    }
+    .index-combo-hint, .index-combo-more {
+      padding: 8px 10px; font-size: 10px; color: #64748b;
+    }
+    .data-table tr:hover td { background: rgba(34, 211, 238, 0.04); }
+    .job-status { font-size: 11px; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; }
+    .job-status.is-running { color: #64d2ff; }
+    .job-status.is-success { color: #30d158; }
+    .job-status.is-partial { color: #ffd60a; }
+    .job-status.is-failed { color: #ff453a; }
+    .pill-success { background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.35); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pill-failed  { background: rgba(248,113,113,.15); color: #f87171; border: 1px solid rgba(248,113,113,.35); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pill-partial { background: rgba(250,204,21,.12); color: #facc15; border: 1px solid rgba(250,204,21,.35); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pill-running { background: rgba(34,211,238,.12); color: #22d3ee; border: 1px solid rgba(34,211,238,.35); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .text-apple-text { color: #e2e8f0; }
+    .text-apple-muted { color: #94a3b8; }
+    .text-apple-faint { color: #64748b; }
+    .text-apple-link { color: #22d3ee; }
+    .border-apple-divider { border-color: #1e293b; }
+    .log-job-row {
+      padding: 16px 24px; border-bottom: 1px solid #1e293b;
+      transition: background .15s;
+    }
+    .log-job-row:hover { background: rgba(34, 211, 238, 0.06); }
+    .log-job-row details summary { cursor: pointer; list-style: none; }
+    .log-job-row details summary::-webkit-details-marker { display: none; }
+    .log-meta-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px 16px; margin-top: 10px; font-size: 12px;
+    }
+    .log-meta-grid dt { color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .log-meta-grid dd { color: #cbd5e1; margin: 2px 0 0; font-family: ui-monospace, monospace; font-size: 11px; }
+    .log-results-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 10px; }
+    .log-results-table th {
+      text-align: left; padding: 6px 8px; color: #64748b; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px;
+      border-bottom: 1px solid #334155; background: #0a0f1a;
+    }
+    .log-results-table td {
+      padding: 8px; border-bottom: 1px solid #1e293b; color: #cbd5e1; vertical-align: top;
+    }
+    .log-results-table tr:hover td { background: rgba(34, 211, 238, 0.04); }
+    .alert-banner {
+      border-radius: 8px; border: 1px solid rgba(248, 113, 113, 0.4);
+      background: rgba(127, 29, 29, 0.25); color: #fecaca;
+      padding: 14px 18px; font-size: 14px; line-height: 1.45;
+    }
+    .section-head {
+      font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: #f1f5f9;
+    }
+    .section-sub { font-size: 14px; color: #94a3b8; line-height: 1.5; margin-top: 4px; }
+    .link-apple { color: #22d3ee; text-decoration: none; }
+    .link-apple:hover { color: #67e8f9; text-decoration: underline; }
+    .hero-title {
+      font-size: 32px; font-weight: 700; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #f1f5f9 0%, #22d3ee 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .settings-section { padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #e8e8ed; }
+    .settings-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .radio-card {
+      display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+      border: 1px solid #d2d2d7; border-radius: 12px; cursor: pointer; transition: border-color .2s;
+    }
+    .radio-card:has(input:checked) { border-color: var(--cyber-accent); background: rgba(34,211,238,.08); }
+    .empty-state { padding: 48px 24px; text-align: center; color: #64748b; font-size: 14px; }
+    .stat-pill {
+      display: inline-flex; flex-direction: column; padding: 12px 16px;
+      background: #0a0f1a; border: 1px solid #1e293b; border-radius: 8px; min-width: 120px;
+    }
+    .stat-pill .val { font-size: 22px; font-weight: 700; color: #22d3ee; }
+    .stat-pill .lbl { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; }
+    .waterfall { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 24px; }
+    @media (max-width: 900px) { .waterfall { grid-template-columns: 1fr 1fr; } }
+    .waterfall-step {
+      padding: 14px 16px; border: 1px solid #334155; background: #0a0f1a;
+      position: relative; min-height: 88px;
+    }
+    .waterfall-step:first-child { border-radius: 10px 0 0 10px; }
+    .waterfall-step:last-child { border-radius: 0 10px 10px 0; }
+    .waterfall-step.done { border-color: rgba(34, 211, 238, 0.5); background: rgba(34, 211, 238, 0.06); }
+    .waterfall-step .step-n { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; }
+    .waterfall-step .step-t { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-top: 4px; }
+    .waterfall-step .step-d { font-size: 11px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
+    .rp-index-input { width: 100%; max-width: 140px; padding: 6px 8px; font-size: 11px; border: 1px solid #475569; border-radius: 6px; background: #0a0f1a; color: #22d3ee; }
+    .rp-toast { position: fixed; bottom: 24px; right: 24px; z-index: 200; padding: 12px 18px; border-radius: 8px; font-size: 13px; background: #1e293b; border: 1px solid #22d3ee; color: #e2e8f0; }
+    @media (max-width: 1024px) {
+      .global-nav .nav-tabs { display: none; }
+    }
+    .app-shell {
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  </style>
+</head>
+<body class="bg-cyber-bg text-cyber-text min-h-screen text-slate-200">
+
+<header class="global-nav">
+  <div class="app-shell h-[52px] flex items-center justify-between gap-6">
+    <div class="flex items-center gap-8 min-w-0">
+      <div class="shrink-0">
+        <span class="text-[17px] font-bold tracking-tight text-cyan-400">TOTAL<span class="text-slate-300">REPLAY</span></span>
+      </div>
+      <nav class="nav-tabs hidden md:flex items-center gap-1">
+        <button data-tab="test" class="tab tab-active">Attack Test</button>
+        <button data-tab="index-planner" class="tab tab-inactive">Index Planner</button>
+        <button data-tab="jobs" class="tab tab-inactive">Logs</button>
+        <button data-tab="settings" class="tab tab-inactive">Settings</button>
+      </nav>
+    </div>
+    <div id="conn-status" class="text-[11px] text-slate-500 shrink-0 text-right max-w-[280px] truncate font-mono"></div>
+  </div>
+  <nav class="md:hidden app-shell flex justify-center gap-1 pb-2 border-t border-apple-divider/80">
+    <button data-tab="test" class="tab tab-active">Attack Test</button>
+    <button data-tab="index-planner" class="tab tab-inactive">Index</button>
+    <button data-tab="jobs" class="tab tab-inactive">Logs</button>
+    <button data-tab="settings" class="tab tab-inactive">Settings</button>
+  </nav>
+</header>
+
+<main class="app-shell py-10">
+  <div class="mb-8">
+    <h1 class="hero-title">Attack simulation control</h1>
+    <p class="section-sub mt-3 max-w-2xl">
+      Run Splunk <a href="https://github.com/splunk/attack_data/tree/master/total_replay" class="link-apple" target="_blank" rel="noopener">TOTAL-REPLAY</a>
+      detections against your lab. Browse, replay, and stream results in one place.
+    </p>
+  </div>
+
+  <div id="hec-alert" class="alert-banner hidden mb-8"></div>
+
+  <!-- Attack Test -->
+  <section id="tab-test" class="tab-panel">
+    <div class="mb-6 flex flex-wrap items-center gap-3">
+      <span id="source-badge" class="badge badge-gray">Local</span>
+      <span id="ssh-badge" class="badge badge-green hidden">SSH</span>
+      <button id="test-remote-ssh" class="btn-ghost hidden">Test SSH connection</button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-7 apple-card p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-5">
+          <div>
+            <h2 class="text-[17px] font-semibold text-apple-text">Catalog</h2>
+            <p class="text-[13px] text-apple-muted mt-0.5">Replay detections with Splunk analytic stories (use cases), MITRE, and sourcetypes</p>
+          </div>
+          <button id="refresh-catalog" class="btn-ghost">Refresh</button>
+        </div>
+
+        <input id="search" type="text" placeholder="Search name, use case, MITRE ID, tactic, sourcetype…"
+               class="apple-input mb-4"/>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 text-[12px] text-apple-muted mb-3">
+          <span><span id="catalog-count" class="font-medium text-apple-text">0</span> items &middot; <span id="selected-count" class="font-medium text-apple-link">0</span> selected</span>
+          <div class="flex flex-wrap gap-4">
+            <button id="select-all" class="btn-ghost">Select visible</button>
+            <button id="select-all-catalog" class="btn-ghost font-medium">Select all</button>
+            <button id="select-none" class="btn-ghost">Clear</button>
+          </div>
+        </div>
+
+        <div id="catalog-list" class="catalog-scroll">
+          <div class="empty-state">Loading...</div>
+        </div>
+        <div id="catalog-error" class="text-[12px] text-red-600 mt-3 hidden"></div>
+      </div>
+
+      <div class="lg:col-span-5 apple-card p-6">
+        <h2 class="text-[17px] font-semibold text-apple-text mb-1">Run replay</h2>
+        <p class="text-[13px] text-apple-muted mb-5">Send attack data to your Splunk index.</p>
+
+        <label class="apple-label" for="replay-index">Splunk index</label>
+        <div class="rp-index-combo mb-1" id="replay-index-wrap">
+          <input id="replay-index" type="text" class="rp-index-combo-input apple-input !w-full" value="test" placeholder="Search Splunk indexes…" autocomplete="off" spellcheck="false"/>
+          <div id="replay-index-menu" class="rp-index-combo-menu hidden" role="listbox"></div>
+        </div>
+        <p id="replay-index-hint" class="text-[11px] text-slate-500 mb-4">Loading indexes from Splunk…</p>
+
+        <label class="apple-label" for="replay-engine">Delivery method</label>
+        <select id="replay-engine" class="apple-select mb-2"></select>
+        <p id="engine-hint" class="text-[12px] text-apple-faint mb-5 leading-relaxed"></p>
+
+        <div class="space-y-3 mb-5 text-[14px] text-apple-text">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input id="replay-sequential" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]" checked/>
+            Run one at a time (sequential)
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer text-apple-muted">
+            <input id="replay-stop-on-error" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]"/>
+            Stop on first failure
+          </label>
+        </div>
+
+        <button id="run-replay" class="btn-primary mb-3">Run selected attacks</button>
+        <button id="run-all-sequential" class="btn-secondary w-full hidden">Select all and run in sequence</button>
+      </div>
+
+      <div class="lg:col-span-12 terminal-panel">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-[15px] font-semibold text-white/90">Live output</h3>
+          <div id="job-status" class="job-status text-white/50">Idle</div>
+        </div>
+        <div id="log" class="mono h-72 overflow-y-auto text-[#a1a1a6]">
+          <div class="text-white/40">No active job.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Index Planner (Splunk inventory + sourcetype routing + rerun) -->
+  <section id="tab-index-planner" class="tab-panel hidden">
+    <div class="mb-6">
+      <h2 class="section-head">Index Planner</h2>
+      <p class="section-sub mt-2 max-w-3xl">Waterfall: pull Splunk index/sourcetype pairs → compare replay detections → set target index (manual overrides win) → rerun attacks to the right index.</p>
+    </div>
+
+    <div class="waterfall" id="rp-waterfall">
+      <div class="waterfall-step" id="wf-step-1">
+        <div class="step-n">Step 1</div>
+        <div class="step-t">Splunk inventory</div>
+        <div class="step-d" id="wf-d1">Sync REST API (tstats)</div>
+        <button type="button" id="rp-sync" class="btn-secondary !w-auto mt-2 text-[11px] px-3 py-1">Sync Splunk</button>
+      </div>
+      <div class="waterfall-step" id="wf-step-2">
+        <div class="step-n">Step 2</div>
+        <div class="step-t">Replay sourcetypes</div>
+        <div class="step-d" id="wf-d2">Extract from detections</div>
+        <button type="button" id="rp-refresh" class="btn-secondary !w-auto mt-2 text-[11px] px-3 py-1">Build routes</button>
+      </div>
+      <div class="waterfall-step" id="wf-step-3">
+        <div class="step-n">Step 3</div>
+        <div class="step-t">Route waterfall</div>
+        <div class="step-d">Manual → Splunk → default</div>
+        <button type="button" id="rp-auto-match" class="btn-ghost !w-auto mt-2 text-[11px]">Auto-match</button>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+        <details class="apple-card p-4" open>
+          <summary class="cursor-pointer font-semibold text-slate-200 text-sm">Splunk inventory (index ↔ sourcetype)</summary>
+          <div class="mt-4 flex flex-wrap gap-3 mb-3">
+            <div class="stat-pill"><span id="stat-pair-count" class="val">0</span><span class="lbl">Pairs</span></div>
+            <div class="stat-pill"><span id="stat-last-sync" class="val text-sm">—</span><span class="lbl">Last sync</span></div>
+          </div>
+          <input id="inv-search" type="text" placeholder="Filter inventory..." class="apple-input mb-2"/>
+          <div class="catalog-scroll max-h-[200px]">
+            <table class="data-table">
+              <thead><tr><th>Index</th><th>Sourcetype</th></tr></thead>
+              <tbody id="inv-table-body"><tr><td colspan="2" class="empty-state">Sync Splunk first.</td></tr></tbody>
+            </table>
+          </div>
+          <div id="rp-sync-log" class="mono h-24 overflow-y-auto text-slate-500 mt-3 text-[11px] border border-slate-800 rounded p-2"></div>
+        </details>
+
+        <div class="apple-card p-6">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h3 class="text-[15px] font-semibold text-slate-200">Routing table (replay → Splunk)</h3>
+            <button id="rp-apply-splunk" class="btn-secondary text-[12px]">Apply Splunk to unmapped</button>
+          </div>
+          <p class="text-[12px] text-slate-500 mb-3">Pick <strong>Target index</strong> from the searchable Splunk index list, then <strong>Save map</strong>. Waterfall: saved manual map beats Splunk inventory, then Settings default index.</p>
+          <div class="flex flex-wrap gap-3 mb-3">
+            <div class="stat-pill"><span id="rp-stat-total" class="val">0</span><span class="lbl">Replay ST</span></div>
+            <div class="stat-pill"><span id="stat-map-count" class="val">0</span><span class="lbl">Saved maps</span></div>
+            <div class="stat-pill"><span id="rp-stat-ready" class="val">0</span><span class="lbl">Ready</span></div>
+            <div class="stat-pill"><span id="rp-stat-unmapped" class="val">0</span><span class="lbl">Unmapped</span></div>
+          </div>
+          <div class="flex flex-wrap gap-2 mb-3">
+            <input id="rp-search" type="text" placeholder="Filter sourcetype..." class="apple-input flex-1 min-w-[180px]"/>
+            <select id="rp-filter" class="apple-select !w-auto min-w-[150px]">
+              <option value="">All statuses</option>
+              <option value="splunk_match">Splunk match</option>
+              <option value="mapped">Manual saved</option>
+              <option value="manual_only">Manual only</option>
+              <option value="conflict">Conflict</option>
+              <option value="unmapped">Unmapped</option>
+              <option value="splunk_ambiguous">Ambiguous</option>
+            </select>
+          </div>
+          <div class="catalog-scroll max-h-[420px]">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Replay sourcetype</th>
+                  <th>Splunk</th>
+                  <th>Splunk index(es)</th>
+                  <th>Waterfall</th>
+                  <th>Target index (edit)</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rp-table-body">
+                <tr><td colspan="7" class="empty-state">Step 1: Sync Splunk → Step 2: Build routes</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p id="rp-sync-hint" class="text-[12px] text-slate-500 mt-3"></p>
+        </div>
+    </div>
+  </section>
+  <div id="rp-toast" class="rp-toast hidden" role="status"></div>
+
+
+  <!-- Logs -->
+  <section id="tab-jobs" class="tab-panel hidden">
+    <div class="mb-6">
+      <h2 class="section-head">Logs</h2>
+      <p class="section-sub mt-2">Past replay jobs, status, and live output summaries.</p>
+    </div>
+    <div class="apple-card overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-5 border-b border-slate-700">
+        <div>
+          <h3 class="text-[17px] font-semibold text-slate-100">Replay logs</h3>
+          <p class="text-[13px] text-slate-400 mt-0.5">Detections run, delivery method, Splunk events, and per-item results</p>
+        </div>
+        <button id="refresh-history" class="btn-secondary">Refresh</button>
+      </div>
+      <div id="history-list" class="catalog-scroll max-h-[640px] bg-[#0a0f1a]"></div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="tab-settings" class="tab-panel hidden">
+    <div class="apple-card p-8 w-full">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-x-12 gap-y-10">
+      <div class="settings-section">
+        <h2 class="section-head mb-1">Data source</h2>
+        <p class="section-sub mb-6">Where attack_data and security_content live.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          <label class="radio-card">
+            <input type="radio" name="conn-mode" value="local" checked/>
+            <span class="text-[14px] font-medium">Local filesystem</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="conn-mode" value="remote"/>
+            <span class="text-[14px] font-medium">Remote server (SSH)</span>
+          </label>
+        </div>
+
+        <div id="local-paths" class="space-y-4">
+          <div>
+            <label class="apple-label" for="cfg-tr-local">TOTAL-REPLAY directory (this machine)</label>
+            <input id="cfg-tr-local" type="text" placeholder="/opt/attack_data/total_replay" class="apple-input"/>
+            <p class="text-[12px] text-apple-faint mt-2">Folder containing <code class="bg-[#e8e8ed] px-1.5 py-0.5 rounded text-[11px]">total_replay.py</code>. Auto-detected under attack_data if empty.</p>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-local-python">Python command (local)</label>
+            <input id="cfg-local-python" type="text" value="python3" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-sc">security_content detections path</label>
+            <input id="cfg-sc" type="text" placeholder="/opt/security_content/detections" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-ad">attack_data repository path</label>
+            <input id="cfg-ad" type="text" placeholder="/opt/attack_data" class="apple-input"/>
+          </div>
+          <button id="cfg-sync-paths-local" type="button" class="btn-ghost">Load paths from local config.yml</button>
+        </div>
+
+        <div id="remote-paths" class="space-y-4 hidden">
+          <div>
+            <label class="apple-label" for="cfg-tr-remote">TOTAL-REPLAY directory (on SSH host)</label>
+            <input id="cfg-tr-remote" type="text" placeholder="/root/splunk-projects/attack_data/total_replay" class="apple-input"/>
+            <p class="text-[12px] text-apple-faint mt-2">Path on the <strong>remote server</strong> where <code class="text-cyan-400 text-xs">total_replay.py</code> lives — not on this machine. <a href="https://github.com/splunk/attack_data/tree/master/total_replay" class="link-apple" target="_blank" rel="noopener">attack_data/total_replay</a></p>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-sc-remote">security_content path (remote)</label>
+            <input id="cfg-sc-remote" type="text" placeholder="From config.yml" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-ad-remote">attack_data path (remote)</label>
+            <input id="cfg-ad-remote" type="text" placeholder="From config.yml" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-remote-python">Python command (remote)</label>
+            <input id="cfg-remote-python" type="text" value="python3" class="apple-input"/>
+            <p class="text-[12px] text-apple-faint mt-2">e.g. <code class="bg-[#e8e8ed] px-1.5 py-0.5 rounded text-[11px]">poetry run python</code></p>
+          </div>
+          <button id="cfg-sync-paths" type="button" class="btn-ghost">Load paths from remote config.yml</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="section-head mb-1">SSH credentials</h2>
+        <p class="section-sub mb-6">Connect to the lab host where TOTAL-REPLAY runs.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="apple-label" for="cfg-ssh-host">SSH host</label>
+            <input id="cfg-ssh-host" type="text" placeholder="203.0.113.10" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-ssh-port">SSH port</label>
+            <input id="cfg-ssh-port" type="number" value="22" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-ssh-user">Username</label>
+            <input id="cfg-ssh-user" type="text" placeholder="ubuntu" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-ssh-pass">Password</label>
+            <input id="cfg-ssh-pass" type="password" placeholder="Leave blank to keep saved" class="apple-input"/>
+            <div id="cfg-ssh-pass-status" class="text-[12px] text-apple-muted mt-2"></div>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="apple-label" for="cfg-ssh-key">Private key path (this machine)</label>
+            <input id="cfg-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" class="apple-input"/>
+          </div>
+        </div>
+        <div id="cfg-ssh-session-status" class="text-[12px] text-apple-muted mt-3"></div>
+      </div>
+
+      <div class="settings-section xl:col-span-2">
+        <h2 class="section-head mb-1">Splunk HEC &amp; REST API</h2>
+        <p class="section-sub mb-6">HEC port (8088) and token for replay ingest. Management port (8089) and its own token for Index Planner sync — use a separate token if your HEC token cannot run searches.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="apple-label" for="cfg-host">Splunk host</label>
+            <input id="cfg-host" type="text" placeholder="192.168.100.63" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-port">HEC port</label>
+            <input id="cfg-port" type="number" value="8088" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-mgmt-port">Management API port</label>
+            <input id="cfg-mgmt-port" type="number" value="8089" class="apple-input"/>
+          </div>
+          <label class="flex items-center gap-3 text-[14px] cursor-pointer sm:col-span-2">
+            <input id="cfg-mgmt-https" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]" checked/>
+            <span>HTTPS for management API (8089) — required on most Splunk installs; HEC (8088) uses the option below</span>
+          </label>
+          <div class="sm:col-span-2">
+            <label class="apple-label" for="cfg-mgmt-token">Management API token (port 8089)</label>
+            <input id="cfg-mgmt-token" type="password" placeholder="Splunk token for REST / tstats sync (optional if HEC token can search)" class="apple-input"/>
+            <div id="cfg-mgmt-token-status" class="text-[12px] text-apple-muted mt-2"></div>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-splunk-user">Splunk username (optional)</label>
+            <input id="cfg-splunk-user" type="text" placeholder="Only if HEC token cannot run searches" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-splunk-pass">Splunk password (optional)</label>
+            <input id="cfg-splunk-pass" type="password" placeholder="Leave blank to keep saved" class="apple-input"/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input id="cfg-use-mapping" type="checkbox" class="w-[18px] h-[18px] accent-cyan-400" checked/>
+              <span class="text-[14px]">Enable index mapping by default for replays</span>
+            </label>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="apple-label" for="cfg-token">HEC token</label>
+            <input id="cfg-token" type="password" placeholder="Paste HEC token UUID..." class="apple-input"/>
+            <div id="cfg-token-status" class="text-[12px] text-apple-muted mt-2"></div>
+          </div>
+          <label class="flex items-center gap-3 text-[14px] cursor-pointer">
+            <input id="cfg-https" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]"/> Use HTTPS
+          </label>
+          <label class="flex items-center gap-3 text-[14px] cursor-pointer">
+            <input id="cfg-verify" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]"/> Verify TLS
+          </label>
+          <div>
+            <label class="apple-label" for="cfg-index">Default index</label>
+            <input id="cfg-index" type="text" value="test" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-replay-engine">Default delivery method</label>
+            <select id="cfg-replay-engine" class="apple-select"></select>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-6 border-t border-apple-divider">
+          <label class="flex items-start gap-3 text-[14px] cursor-pointer">
+            <input id="cfg-ssh-tunnel" type="checkbox" class="w-[18px] h-[18px] mt-0.5 accent-[#0071e3]"/>
+            <span>SSH tunnel for HEC and management API when Splunk is only reachable through SSH</span>
+          </label>
+          <div id="tunnel-fields" class="mt-4 hidden">
+            <label class="apple-label" for="cfg-ssh-remote">Remote Splunk bind host</label>
+            <input id="cfg-ssh-remote" type="text" placeholder="Empty = Splunk host above, or 127.0.0.1" class="apple-input"/>
+          </div>
+          <div id="cfg-ssh-tunnel-status" class="text-[12px] text-apple-muted mt-3"></div>
+        </div>
+      </div>
+
+      </div>
+      <div class="flex flex-wrap items-center gap-3 pt-2 xl:col-span-2">
+        <button id="cfg-save" class="btn-primary !w-auto px-8">Save settings</button>
+        <button id="cfg-test" class="btn-secondary">Test Splunk HEC</button>
+        <button id="cfg-test-rest" class="btn-secondary">Test REST API</button>
+        <button id="cfg-test-hec-remote" class="btn-secondary hidden">Test HEC (remote)</button>
+        <button id="cfg-test-ssh" class="btn-secondary hidden">Test SSH</button>
+        <button id="cfg-ssh-disconnect" type="button" class="btn-secondary hidden">Disconnect</button>
+        <span id="cfg-msg" class="text-[14px] text-apple-muted"></span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="app-shell py-10 text-center text-[11px] text-slate-600 border-t border-slate-800 font-mono">
+  TOTALREPLAY SOC CONSOLE &middot; Splunk attack_data
+</footer>
+
+<script>
+const state = {
+  mode: "detections",
+  remote: false,
+  catalog: { detections: [], files: [], cached: [] },
+  selected: new Set(),
+  filter: "",
+  jobId: null,
+  evtSource: null,
+  atkIndexOptions: [],
+  replayIndexManual: false,
+  configUseMapping: true,
+  routingCache: { loaded: false, mappings: {}, inventory: {}, defaultIndex: "test", splunkSynced: false },
+};
+
+function getReplayUseMapping() {
+  return state.configUseMapping !== false;
+}
+
+function switchTab(tabId) {
+  if (tabId === "mapping" || tabId === "sourcetypes" || tabId === "route-planner") tabId = "index-planner";
+  if (tabId === "history" || tabId === "schedules") tabId = "jobs";
+  document.querySelectorAll(".tab").forEach(b => {
+    const on = b.dataset.tab === tabId;
+    b.classList.toggle("tab-active", on);
+    b.classList.toggle("tab-inactive", !on);
+  });
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+  document.getElementById("tab-" + tabId).classList.remove("hidden");
+  if (tabId === "jobs") loadHistory();
+  if (tabId === "index-planner") loadIndexPlanner();
+  if (tabId === "test") {
+    loadRoutingCache(true);
+    loadSplunkIndexDropdown();
+    bindAttackIndexCombo();
+  }
+  if (tabId === "settings") loadConfig();
+}
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+});
+
+function updateSelectAllCatalogLabel() {
+  document.getElementById("select-all-catalog").textContent = "Select all detections";
+  const runAll = document.getElementById("run-all-sequential");
+  runAll.textContent = "Select all & run in sequence";
+  runAll.classList.remove("hidden");
+}
+
+function populateReplayEngineSelect(sel, remote, preferred) {
+  if (remote) {
+    sel.innerHTML = `
+      <option value="remote_cli">Run TOTAL-REPLAY on remote server (SSH)</option>
+      <option value="hec">Send events to Splunk via HEC (this web app)</option>`;
+    if (preferred === "local_cli") preferred = "remote_cli";
+  } else {
+    sel.innerHTML = `
+      <option value="local_cli">Run TOTAL-REPLAY on this machine (local CLI)</option>
+      <option value="hec">Send events to Splunk via HEC (this web app)</option>`;
+    if (preferred === "remote_cli") preferred = "local_cli";
+  }
+  const values = [...sel.options].map(o => o.value);
+  sel.value = values.includes(preferred) ? preferred : values[0];
+}
+
+function updateEngineHint() {
+  const eng = document.getElementById("replay-engine").value;
+  const el = document.getElementById("engine-hint");
+  document.getElementById("replay-engine").disabled = false;
+  if (!state.remote) {
+    el.textContent = eng === "local_cli"
+      ? "Runs total_replay.py on this machine with SPLUNK_HOST and SPLUNK_HEC_TOKEN from Settings."
+      : "Reads attack logs and posts to Splunk HEC from this web app.";
+    return;
+  }
+  el.textContent = eng === "remote_cli"
+    ? "Runs total_replay.py on the remote host with SPLUNK_HOST and SPLUNK_HEC_TOKEN."
+    : "Downloads attack logs over SSH and posts to Splunk HEC (tunnel optional).";
+}
+document.getElementById("replay-engine").addEventListener("change", updateEngineHint);
+
+async function loadCatalog() {
+  document.getElementById("catalog-list").innerHTML =
+    '<div class="empty-state">Loading catalog...</div>';
+  document.getElementById("catalog-error").classList.add("hidden");
+
+  if (state.remote) {
+    const cfg = await fetch("/api/config").then(r => r.json());
+    if (!cfg.remote_security_content_path && !cfg.security_content_path) {
+      await fetch("/api/remote/sync-paths", { method: "POST" });
+    }
+  }
+
+  const det = await fetch("/api/catalog/detections").then(r => r.json());
+  state.catalog.detections = det.items || [];
+  if (det.error) {
+    const errEl = document.getElementById("catalog-error");
+    errEl.textContent = det.error;
+    errEl.classList.remove("hidden");
+  }
+  renderCatalog();
+  updateSelectAllCatalogLabel();
+  loadRoutingCache(true);
+}
+
+function itemKey(it) {
+  return it.id;
+}
+
+function catalogItems() {
+  return state.catalog.detections;
+}
+
+function detectionMitreLines(it) {
+  const tech = (it.mitre_techniques || it.mitre_attack_id || []).filter(Boolean);
+  const tac = (it.mitre_tactics || []).filter(Boolean);
+  const parts = [];
+  if (tech.length) {
+    const label = tech.length > 4 ? `${tech.slice(0, 4).join(", ")} +${tech.length - 4}` : tech.join(", ");
+    parts.push(`<div class="text-[12px] text-amber-400/90 font-mono truncate mt-0.5" title="${escapeHTML(tech.join(", "))}">Technique: ${escapeHTML(label)}</div>`);
+  }
+  if (tac.length) {
+    const label = tac.length > 3 ? `${tac.slice(0, 3).join(", ")} +${tac.length - 3}` : tac.join(", ");
+    parts.push(`<div class="text-[12px] text-violet-400/90 truncate mt-0.5" title="${escapeHTML(tac.join(", "))}">Tactic: ${escapeHTML(label)}</div>`);
+  }
+  return parts.join("");
+}
+
+function detectionSourcetypes(it) {
+  if (it.sourcetypes?.length) return it.sourcetypes;
+  const seen = [];
+  for (const t of it.tests || []) {
+    for (const a of t.attack_data || []) {
+      if (a.sourcetype && !seen.includes(a.sourcetype)) seen.push(a.sourcetype);
+    }
+  }
+  return seen;
+}
+
+function catalogSourcetypeLine(it) {
+  const sts = detectionSourcetypes(it);
+  if (!sts.length) return "";
+  const label = sts.length > 2 ? `${sts.slice(0, 2).join(", ")} +${sts.length - 2}` : sts.join(", ");
+  return `<div class="text-[12px] text-cyan-400/90 font-mono truncate mt-0.5" title="${escapeHTML(sts.join(", "))}">ST: ${escapeHTML(label)}</div>`;
+}
+
+function detectionUseCases(it) {
+  const raw = it.use_cases || it.analytic_story || [];
+  if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+  if (raw) return [String(raw)];
+  return [];
+}
+
+function catalogUseCaseLine(it) {
+  const stories = detectionUseCases(it);
+  if (!stories.length) {
+    return `<div class="text-[12px] text-slate-600 italic mt-0.5">Use cases: not tagged in security_content</div>`;
+  }
+  const full = stories.join(", ");
+  const label = stories.length > 3
+    ? `${stories.slice(0, 3).join(", ")} +${stories.length - 3} more`
+    : full;
+  return `<div class="text-[12px] text-emerald-400/90 mt-0.5 leading-snug" title="${escapeHTML(full)}">Use cases: ${escapeHTML(label)}</div>`;
+}
+
+function visibleItems() {
+  const q = state.filter.toLowerCase().trim();
+  return catalogItems().filter(it => {
+    if (!q) return true;
+    const hay = [
+      it.name, it.id, it.file,
+      detectionUseCases(it).join(" "),
+      (it.use_cases || []).join(" "),
+      (it.analytic_story || []).join(" "),
+      (it.mitre_techniques || it.mitre_attack_id || []).join(" "),
+      (it.mitre_tactics || []).join(" "),
+      (it.sourcetypes || []).join(" "),
+      detectionSourcetypes(it).join(" "),
+    ].filter(Boolean).join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function renderCatalog() {
+  const list = document.getElementById("catalog-list");
+  const items = visibleItems();
+  document.getElementById("catalog-count").textContent = items.length;
+
+  if (items.length === 0) {
+    const hint = state.remote
+      ? "No items. Check paths in Settings and test the SSH connection."
+      : "No items. Check paths in Settings and refresh the catalog.";
+    list.innerHTML = `<div class="empty-state">${hint}</div>`;
+    updateSelectedCount();
+    return;
+  }
+
+  list.innerHTML = items.map(it => {
+    const key = itemKey(it);
+    const checked = state.selected.has(key) ? "checked" : "";
+    return `<label class="catalog-row">
+      <input type="checkbox" data-key="${escapeHTML(key)}" ${checked} class="row-cb"/>
+      <div class="flex-1 min-w-0">
+        <div class="text-[14px] font-medium truncate text-slate-100">${escapeHTML(it.name)}</div>
+        ${catalogUseCaseLine(it)}
+        ${detectionMitreLines(it)}
+        ${catalogSourcetypeLine(it)}
+        <div class="text-[11px] text-slate-600 font-mono truncate mt-0.5">${escapeHTML(it.id)}</div>
+      </div>
+    </label>`;
+  }).join("");
+
+  list.querySelectorAll(".row-cb").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const k = e.target.dataset.key;
+      if (e.target.checked) state.selected.add(k); else state.selected.delete(k);
+      updateSelectedCount();
+    });
+  });
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  document.getElementById("selected-count").textContent = state.selected.size;
+  updateReplayIndexFromMapping();
+}
+
+let _routingCachePromise = null;
+
+async function loadRoutingCache(force = false) {
+  if (!force && state.routingCache?.loaded) return state.routingCache;
+  if (_routingCachePromise && !force) return _routingCachePromise;
+  _routingCachePromise = fetch("/api/splunk/routing-cache")
+    .then(r => r.json())
+    .then(data => {
+      const mappedIdx = Object.values(data.mappings || {})
+        .map(m => m.target_index).filter(Boolean);
+      state.routingCache = {
+        loaded: !!data.ok,
+        mappings: data.mappings || {},
+        inventory: data.inventory || {},
+        defaultIndex: data.default_index || "test",
+        splunkSynced: !!data.splunk_synced,
+      };
+      state.atkIndexOptions = [...new Set([
+        ...(data.indexes || []),
+        ...mappedIdx,
+        ...state.atkIndexOptions,
+      ])].sort((a, b) => a.localeCompare(b));
+      return state.routingCache;
+    })
+    .catch(() => state.routingCache)
+    .finally(() => { _routingCachePromise = null; });
+  return _routingCachePromise;
+}
+
+async function loadAttackIndexOptions() {
+  await loadRoutingCache();
+}
+
+function normSt(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function splunkHitsForSt(detSt) {
+  const inv = state.routingCache.inventory || {};
+  const hits = [...(inv[normSt(detSt)] || [])];
+  if (!hits.length && detSt.includes(":")) {
+    const tail = detSt.split(":").pop();
+    hits.push(...(inv[normSt(tail)] || []));
+  }
+  return hits;
+}
+
+function suggestIndexClient(detSt, defaultIndex) {
+  const st = String(detSt || "").trim();
+  const manual = (state.routingCache.mappings || {})[st];
+  const splunkHits = splunkHitsForSt(st);
+  const splunkIndexes = [...new Set(splunkHits.map(h => h.index_name))].sort();
+  const result = {
+    detection_sourcetype: st,
+    suggested_index: defaultIndex,
+    suggested_replay_sourcetype: st,
+    source: "default",
+    status: "unmapped",
+    needs_review: true,
+  };
+  if (manual?.target_index) {
+    result.suggested_index = manual.target_index;
+    result.suggested_replay_sourcetype = manual.replay_sourcetype || st;
+    result.source = "manual";
+    if (splunkIndexes.length) {
+      result.status = manual.target_index in splunkIndexes ? "mapped" : "conflict";
+      result.needs_review = result.status === "conflict" || splunkIndexes.length > 1;
+    } else {
+      result.status = "manual_only";
+      result.needs_review = false;
+    }
+    return result;
+  }
+  if (splunkHits.length === 1) {
+    result.suggested_index = splunkHits[0].index_name;
+    result.suggested_replay_sourcetype = splunkHits[0].sourcetype;
+    result.source = splunkHits[0].sourcetype === st ? "splunk_exact" : "splunk_normalized";
+    result.status = "splunk_match";
+    result.needs_review = false;
+    return result;
+  }
+  if (splunkHits.length > 1) {
+    const idxSet = new Set(splunkIndexes);
+    result.suggested_index = splunkIndexes[0];
+    result.suggested_replay_sourcetype = splunkHits[0].sourcetype;
+    result.source = idxSet.size === 1 ? "splunk_exact" : "splunk_ambiguous";
+    result.status = idxSet.size === 1 ? "splunk_ambiguous_st" : "splunk_ambiguous";
+    result.needs_review = true;
+  }
+  return result;
+}
+
+function previewMessageClient(status, indexes, fallback) {
+  if (status === "ready") return `Will send to index: ${indexes[0]}`;
+  if (status === "multi_index") return `Multiple indexes suggested: ${indexes.join(", ")} — review before run`;
+  if (status === "conflict") return "Manual mapping differs from Splunk inventory — review before run";
+  if (status === "review") return `Suggested: ${indexes[0] || fallback} — confirm before run`;
+  return `Using fallback index: ${fallback}`;
+}
+
+function sourcetypesForReplayItem(item) {
+  const det = state.catalog.detections.find(d => d.id === item.detection_id);
+  return det ? detectionSourcetypes(det) : [];
+}
+
+function previewItemsClient(items, fallbackIndex) {
+  const fallback = fallbackIndex || state.routingCache.defaultIndex || "test";
+  const previews = [];
+  const summary = { total: 0, ready: 0, review: 0, conflict: 0, multi_index: 0, fallback: 0, needs_review: 0 };
+
+  for (const item of items) {
+    const label = item.detection_name || item.name || item.path || item.detection_id || "?";
+    const sts = sourcetypesForReplayItem(item);
+    if (!sts.length) {
+      previews.push({
+        label,
+        sourcetypes: [],
+        resolved_index: fallback,
+        source: "fallback",
+        status: "fallback",
+        needs_review: false,
+        message: "No sourcetype — using fallback index.",
+      });
+      summary.fallback += 1;
+      continue;
+    }
+    const stRows = sts.map(st => suggestIndexClient(st, fallback));
+    const indexesSeen = stRows.map(s => s.suggested_index);
+    const uniqueIdx = [...new Set(indexesSeen)].sort();
+    const needsReview = stRows.some(s => s.needs_review) || uniqueIdx.length > 1;
+    let resolved, status;
+    if (uniqueIdx.length === 1) {
+      resolved = uniqueIdx[0];
+      status = "ready";
+      if (stRows.some(s => s.status === "conflict")) status = "conflict";
+      else if (stRows.some(s => s.needs_review)) status = "review";
+      else if (stRows.every(s => ["mapped", "splunk_match", "manual_only"].includes(s.status))) status = "ready";
+      else status = "review";
+    } else {
+      resolved = stRows[0]?.suggested_index || fallback;
+      status = "multi_index";
+    }
+    previews.push({
+      label,
+      item,
+      sourcetypes: stRows,
+      resolved_index: resolved,
+      source: stRows.length === 1 ? stRows[0].source : "mixed",
+      status,
+      needs_review: needsReview,
+      message: previewMessageClient(status, uniqueIdx, fallback),
+    });
+    summary[status] = (summary[status] || 0) + 1;
+    if (needsReview) summary.needs_review += 1;
+  }
+  summary.total = previews.length;
+  return {
+    ok: true,
+    splunk_synced: state.routingCache.splunkSynced,
+    items: previews,
+    summary,
+  };
+}
+
+state.splunkIndexList = [];
+
+function getReplayIndexValue() {
+  return document.getElementById("replay-index")?.value.trim() || "test";
+}
+
+function setReplayIndexValue(idx) {
+  const inp = document.getElementById("replay-index");
+  if (!inp || !idx) return;
+  inp.value = String(idx).trim();
+}
+
+function bindAttackIndexCombo() {
+  const input = document.getElementById("replay-index");
+  const menu = document.getElementById("replay-index-menu");
+  if (!input || !menu || input._atkComboBound) return;
+  input._atkComboBound = true;
+
+  const showMenu = (query) => {
+    const qq = (query || "").trim().toLowerCase();
+    const opts = state.splunkIndexList || [];
+    const filtered = qq ? opts.filter(i => i.toLowerCase().includes(qq)) : opts;
+    if (!opts.length) {
+      menu.innerHTML = '<div class="index-combo-hint">Sync Splunk in Settings (Test REST API)</div>';
+    } else if (!filtered.length) {
+      menu.innerHTML = '<div class="index-combo-hint">No matching index</div>';
+    } else {
+      const slice = filtered.slice(0, 100);
+      menu.innerHTML = slice.map(i =>
+        `<button type="button" class="index-combo-opt" data-val="${escapeHTML(i)}">${escapeHTML(i)}</button>`
+      ).join("");
+      if (filtered.length > 100) {
+        menu.innerHTML += `<div class="index-combo-more">+${filtered.length - 100} more — type to filter</div>`;
+      }
+    }
+    menu.classList.remove("hidden");
+    menu.querySelectorAll(".index-combo-opt").forEach(btn => {
+      btn.addEventListener("mousedown", e => {
+        e.preventDefault();
+        input.value = btn.dataset.val;
+        state.replayIndexManual = true;
+        menu.classList.add("hidden");
+      });
+    });
+  };
+
+  input.addEventListener("focus", () => showMenu(input.value));
+  input.addEventListener("input", () => {
+    state.replayIndexManual = true;
+    showMenu(input.value);
+  });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Escape") menu.classList.add("hidden");
+  });
+}
+
+function applyReplayIndexFromSelection(r) {
+  if (!r.ok || !r.items?.length || state.replayIndexManual) return;
+  const mappedStatuses = new Set(["ready", "mapped", "manual_only", "splunk_match", "review"]);
+  const mappedItem = r.items.find(p =>
+    p.resolved_index && mappedStatuses.has(p.status) && p.source !== "fallback"
+  );
+  if (mappedItem) setReplayIndexValue(mappedItem.resolved_index);
+  else {
+    const counts = {};
+    r.items.forEach(p => {
+      if (p.resolved_index) counts[p.resolved_index] = (counts[p.resolved_index] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (top) setReplayIndexValue(top[0]);
+  }
+}
+
+let _splunkIndexesPromise = null;
+async function loadSplunkIndexDropdown(preferred, force = false) {
+  const hint = document.getElementById("replay-index-hint");
+  const keep = preferred || getReplayIndexValue();
+  if (force) _splunkIndexesPromise = null;
+  if (hint) hint.textContent = "Loading indexes from Splunk API…";
+
+  if (!_splunkIndexesPromise) {
+    _splunkIndexesPromise = fetch("/api/splunk/indexes").then(r => r.json());
+  }
+  const data = await _splunkIndexesPromise.catch(() => ({ ok: false, indexes: [] }));
+
+  const indexes = data.indexes || [];
+  state.splunkIndexList = indexes;
+  bindAttackIndexCombo();
+
+  if (!indexes.length) {
+    const fb = keep || data.default_index || state.routingCache?.defaultIndex || "test";
+    state.splunkIndexList = [fb];
+    setReplayIndexValue(fb);
+    if (hint) hint.textContent = data.error
+      ? `Could not load indexes: ${data.error}`
+      : "No indexes — check Settings and Test REST API";
+    return;
+  }
+
+  const want = keep || data.default_index || state.routingCache?.defaultIndex || indexes[0];
+  setReplayIndexValue(indexes.includes(want) ? want : indexes[0]);
+  state.atkIndexOptions = [...new Set([...state.atkIndexOptions, ...indexes])].sort((a, b) => a.localeCompare(b));
+  if (hint) {
+    hint.textContent = data.source === "splunk_api"
+      ? `${indexes.length} index(es) from Splunk — type to search`
+      : `${indexes.length} index(es) (cached)${data.warning ? " — " + data.warning : ""}`;
+  }
+}
+
+let _replayIndexDebounce = null;
+function updateReplayIndexFromMapping() {
+  if (!getReplayUseMapping()) return;
+  const items = buildItemsForReplay();
+  if (!items.length) return;
+  clearTimeout(_replayIndexDebounce);
+  _replayIndexDebounce = setTimeout(() => {
+    if (!state.routingCache.loaded) {
+      loadRoutingCache().then(() => updateReplayIndexFromMapping());
+      return;
+    }
+    const fallback = getReplayIndexValue() || state.routingCache.defaultIndex || "test";
+    applyReplayIndexFromSelection(previewItemsClient(items, fallback));
+  }, 80);
+}
+
+document.getElementById("search").addEventListener("input", e => {
+  state.filter = e.target.value;
+  renderCatalog();
+});
+document.getElementById("refresh-catalog").addEventListener("click", async () => {
+  await loadCatalog();
+  await loadRoutingCache(true);
+  loadSplunkIndexDropdown(null, true);
+});
+document.getElementById("select-all").addEventListener("click", () => {
+  for (const it of visibleItems()) state.selected.add(itemKey(it));
+  renderCatalog();
+});
+document.getElementById("select-none").addEventListener("click", () => {
+  state.selected.clear();
+  state.replayIndexManual = false;
+  renderCatalog();
+});
+
+document.getElementById("select-all-catalog").addEventListener("click", () => {
+  const list = catalogItems();
+  if (list.length > 50 && !confirm(`Select all ${list.length} detections?`)) return;
+  for (const it of list) state.selected.add(itemKey(it));
+  renderCatalog();
+});
+
+function selectAllCatalog() {
+  for (const it of catalogItems()) state.selected.add(itemKey(it));
+  renderCatalog();
+}
+
+function buildItemsForReplay() {
+  return catalogItems()
+    .filter(it => state.selected.has(itemKey(it)))
+    .map(d => ({ detection_name: d.name, detection_id: d.id }));
+}
+
+function appendLogLine(text) {
+  const log = document.getElementById("log");
+  const div = document.createElement("div");
+  div.className = "log-line";
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+document.getElementById("run-all-sequential").addEventListener("click", () => {
+  const list = catalogItems();
+  const n = list.length;
+  if (n === 0) { alert("Catalog is empty. Refresh first."); return; }
+  if (!confirm(`Select all ${n} items and run them one at a time? This may take hours.`)) return;
+  selectAllCatalog();
+  document.getElementById("replay-sequential").checked = true;
+  submitReplayJob({
+    mode: "detections",
+    items: buildItemsForReplay(),
+    index: getReplayIndexValue() || "test",
+    engine: document.getElementById("replay-engine").value,
+    sequential: true,
+    stopOnError: document.getElementById("replay-stop-on-error").checked,
+    useMapping: getReplayUseMapping(),
+  });
+});
+
+function setJobStatus(status, msg) {
+  const el = document.getElementById("job-status");
+  el.textContent = msg || status;
+  const cls = {
+    running: "is-running", success: "is-success",
+    partial: "is-partial", failed: "is-failed",
+  }[status] || "";
+  el.className = "job-status " + cls;
+}
+
+function openLogStream(jobId) {
+  if (state.evtSource) state.evtSource.close();
+  const log = document.getElementById("log");
+  const es = new EventSource(`/api/replay/stream/${jobId}`);
+  state.evtSource = es;
+  es.onmessage = e => {
+    if (e.data === "__END__") {
+      es.close();
+      fetch(`/api/history/${jobId}`).then(r => r.json()).then(h => {
+        setJobStatus(h.status, h.summary || h.status);
+      });
+      return;
+    }
+    const div = document.createElement("div");
+    div.className = "log-line";
+    div.textContent = e.data;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  };
+  es.onerror = () => {
+    setJobStatus("failed", "stream error");
+    appendLogLine("SSE connection lost. Refresh Logs for final status.");
+    es.close();
+  };
+};
+
+function parseHistoryPayload(h) {
+  let raw = {};
+  try { raw = JSON.parse(h.items_json || "{}"); } catch (_) {}
+  if (Array.isArray(raw)) {
+    return {
+      engine: "",
+      mode: "detections",
+      inputItems: [],
+      replayTitles: [],
+      results: raw,
+      legacy: true,
+      sequential: false,
+      stopOnError: false,
+      useMapping: true,
+      totalEvents: 0,
+      succ: 0,
+      fail: 0,
+      error: null,
+    };
+  }
+  if (raw.results) {
+    return {
+      engine: raw.engine || "",
+      mode: raw.mode || "detections",
+      inputItems: raw.input_items || raw.items || [],
+      replayTitles: raw.replay_titles || [],
+      results: raw.results || [],
+      legacy: false,
+      sequential: !!raw.sequential,
+      stopOnError: !!raw.stop_on_error,
+      useMapping: raw.use_index_mapping !== false,
+      totalEvents: raw.total_events || 0,
+      succ: raw.succ || 0,
+      fail: raw.fail || 0,
+      error: raw.error || null,
+    };
+  }
+  if (raw.engine) {
+    return {
+      engine: raw.engine,
+      mode: raw.mode || "detections",
+      inputItems: raw.input_items || raw.items || [],
+      replayTitles: raw.replay_titles || [],
+      results: [],
+      legacy: false,
+      sequential: !!raw.sequential,
+      stopOnError: !!raw.stop_on_error,
+      useMapping: raw.use_index_mapping !== false,
+      totalEvents: 0,
+      succ: 0,
+      fail: 0,
+      error: null,
+    };
+  }
+  return {
+    engine: "", mode: "detections", inputItems: [], replayTitles: [], results: [],
+    legacy: true,
+    sequential: false, stopOnError: false, useMapping: true,
+    totalEvents: 0, succ: 0, fail: 0, error: null,
+  };
+}
+
+function formatMitreList(arr) {
+  const a = (arr || []).filter(Boolean);
+  if (!a.length) return "—";
+  return a.length > 4 ? `${a.slice(0, 4).join(", ")} +${a.length - 4}` : a.join(", ");
+}
+
+function formatUseCases(r) {
+  const s = r.use_cases || (Array.isArray(r.analytic_story) ? r.analytic_story.join(", ") : "");
+  return s || "—";
+}
+
+function replayTitleLine(p) {
+  const titles = p.replayTitles?.length ? p.replayTitles
+    : p.inputItems.map(it => it.detection_name || it.name).filter(Boolean);
+  if (!titles.length) return p.legacy ? "Legacy log (re-run to see detection names)" : "Replay job";
+  if (titles.length === 1) return titles[0];
+  return `${titles[0]} and ${titles.length - 1} more`;
+}
+
+function engineLabel(engine) {
+  const m = {
+    hec: "Web UI HEC",
+    local_cli: "Local TOTAL-REPLAY CLI",
+    remote_cli: "Remote TOTAL-REPLAY CLI",
+  };
+  return m[engine] || engine || "unknown";
+}
+
+function formatDuration(started, finished) {
+  if (!started || !finished) return "—";
+  const a = Date.parse(started);
+  const b = Date.parse(finished);
+  if (Number.isNaN(a) || Number.isNaN(b)) return "—";
+  const sec = Math.max(0, Math.round((b - a) / 1000));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  return `${m}m ${sec % 60}s`;
+}
+
+function eventsCell(r, engine, jobTotal) {
+  const n = r.events_forwarded;
+  if (n !== null && n !== undefined && n !== "") return String(n);
+  if (jobTotal > 0 && (engine === "remote_cli" || engine === "local_cli")) {
+    return `batch ~${jobTotal}`;
+  }
+  if (engine === "hec") return "0";
+  if (engine === "remote_cli" || engine === "local_cli") return "see job total";
+  return "—";
+}
+
+async function loadHistory() {
+  const data = await fetch("/api/history").then(r => r.json());
+  const list = document.getElementById("history-list");
+  if (!data.items?.length) {
+    list.innerHTML = '<div class="empty-state">No replays yet.</div>';
+    return;
+  }
+  list.innerHTML = data.items.map(h => {
+    const p = parseHistoryPayload(h);
+    const pill = `pill-${h.status || "running"}`;
+    const inputCount = p.inputItems.length;
+    const resultRows = p.results.length
+      ? p.results
+      : p.inputItems.map(it => ({
+          label: it.detection_name || it.name || it.detection_id || "?",
+          detection_name: it.detection_name,
+          detection_id: it.detection_id,
+          status: h.status === "running" ? "running" : "unknown",
+          message: h.status === "running" ? "In progress" : "No per-item result stored",
+          events_forwarded: null,
+        }));
+    const titleLine = replayTitleLine(p);
+    const eventsNote = p.totalEvents > 0
+      ? `${p.totalEvents} events to Splunk`
+      : (p.engine === "hec" ? "0 events (HEC)" : "CLI — count in live output if not parsed");
+
+    const resultsTable = resultRows.length ? `
+      <table class="log-results-table">
+        <thead><tr>
+          <th>Replay (detection)</th>
+          <th>Use case</th>
+          <th>MITRE technique</th>
+          <th>MITRE tactic</th>
+          <th>Result</th>
+          <th>Events</th>
+          <th>Detail</th>
+        </tr></thead>
+        <tbody>
+          ${resultRows.map(r => `
+            <tr>
+              <td class="font-medium text-slate-200 max-w-[200px]">
+                <div class="truncate" title="${escapeHTML(r.detection_name || r.label || "?")}">${escapeHTML(r.detection_name || r.label || "?")}</div>
+                ${r.detection_id ? `<div class="text-[10px] text-slate-500 font-mono truncate mt-0.5">${escapeHTML(r.detection_id)}</div>` : ""}
+              </td>
+              <td class="text-slate-400 max-w-[160px]"><span class="line-clamp-2" title="${escapeHTML(formatUseCases(r))}">${escapeHTML(formatUseCases(r))}</span></td>
+              <td class="font-mono text-amber-400/90 text-[10px]">${escapeHTML(formatMitreList(r.mitre_techniques || r.mitre_attack_id))}</td>
+              <td class="text-violet-400/90 text-[10px]">${escapeHTML(formatMitreList(r.mitre_tactics))}</td>
+              <td><span class="pill-${r.status === "success" ? "success" : r.status === "failed" ? "failed" : "partial"}">${escapeHTML(r.status || "?")}</span></td>
+              <td class="font-mono text-cyan-400/90">${escapeHTML(eventsCell(r, p.engine, p.totalEvents))}</td>
+              <td class="text-slate-400 text-[10px]">${escapeHTML(r.message || "")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>` : "";
+
+    const replayList = (p.replayTitles?.length ? p.replayTitles
+      : p.inputItems.map(it => it.detection_name || it.name).filter(Boolean))
+      .map(n => `<li class="text-[12px] text-slate-300 truncate">${escapeHTML(n)}</li>`).join("");
+
+    return `<div class="log-job-row" data-job-id="${escapeHTML(h.id)}">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <span class="${pill} shrink-0">${escapeHTML(h.status || "unknown")}</span>
+          <div class="min-w-0">
+            <div class="text-[15px] font-semibold text-cyan-100 truncate" title="${escapeHTML(titleLine)}">${escapeHTML(titleLine)}</div>
+            <div class="text-[12px] text-slate-400 mt-0.5 truncate">${escapeHTML(h.summary || "")}</div>
+            <div class="text-[10px] text-slate-600 font-mono mt-0.5 truncate" title="${escapeHTML(h.id)}">${escapeHTML(h.id)}</div>
+          </div>
+        </div>
+        <div class="text-[11px] text-slate-500 shrink-0 text-right">
+          <div>${escapeHTML(h.started_at || "")}</div>
+          ${h.finished_at ? `<div class="text-slate-600">→ ${escapeHTML(h.finished_at)}</div>` : ""}
+        </div>
+      </div>
+      <dl class="log-meta-grid">
+        <div><dt>Index</dt><dd>${escapeHTML(h.index_name || "—")}</dd></div>
+        <div><dt>Splunk host</dt><dd>${escapeHTML(h.splunk_host || "—")}</dd></div>
+        <div><dt>Delivery</dt><dd>${escapeHTML(engineLabel(p.engine))}</dd></div>
+        <div><dt>Mode</dt><dd>${escapeHTML(p.mode || "detections")}</dd></div>
+        <div><dt>Replays run</dt><dd>${inputCount || resultRows.length} detection(s)</dd></div>
+        <div><dt>Outcome</dt><dd>${p.succ} ok · ${p.fail} failed</dd></div>
+        <div><dt>Splunk events</dt><dd>${escapeHTML(eventsNote)}</dd></div>
+        <div><dt>Duration</dt><dd>${escapeHTML(formatDuration(h.started_at, h.finished_at))}</dd></div>
+        <div><dt>Sequential</dt><dd>${p.sequential ? "yes" : "no"}</dd></div>
+        <div><dt>Index mapping</dt><dd>${p.useMapping ? "on" : "off"}</dd></div>
+      </dl>
+      ${p.error ? `<p class="text-[12px] text-red-400 mt-2">${escapeHTML(p.error)}</p>` : ""}
+      ${p.legacy ? `<p class="text-[12px] text-amber-400/90 mt-2">Older log entry — run a new replay to store detection names, MITRE, and use cases.</p>` : ""}
+      ${replayList ? `<ul class="mt-3 space-y-0.5 max-h-24 overflow-y-auto border border-slate-800 rounded-lg p-2 bg-[#070b14]">${replayList}</ul>` : ""}
+      <details class="mt-3" open>
+        <summary class="text-[12px] text-cyan-400 font-medium hover:text-cyan-300">Detection details (${resultRows.length})</summary>
+        <div class="mt-2 overflow-x-auto">${resultsTable}</div>
+      </details>
+      ${p.inputItems.length ? `<button type="button" class="rerun-history mt-3 text-[12px] text-cyan-400 font-medium hover:underline" data-id="${escapeHTML(h.id)}">Rerun this job</button>` : ""}
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".rerun-history").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const h = data.items.find(x => x.id === btn.dataset.id);
+      if (!h) return;
+      const p = parseHistoryPayload(h);
+      const items = p.inputItems;
+      if (!items.length) { alert("No items stored for this job."); return; }
+      if (!confirm(`Rerun ${items.length} item(s) from this log entry?`)) return;
+      switchTab("test");
+      submitReplayJob({
+        mode: p.mode || "detections",
+        items,
+        index: h.index_name || "test",
+        engine: p.engine,
+        sequential: p.sequential,
+        stopOnError: p.stopOnError,
+        useMapping: p.useMapping,
+      });
+    });
+  });
+}
+document.getElementById("refresh-history").addEventListener("click", loadHistory);
+
+async function submitReplayJob(opts) {
+  const { mode, items, index, engine, sequential, stopOnError, useMapping } = opts;
+  if (!items.length) { alert("Select at least one item."); return null; }
+  document.getElementById("log").innerHTML = "";
+  appendLogLine(`Submitting ${items.length} item(s)${sequential ? " (sequential)" : ""}...`);
+  setJobStatus("running", "Starting...");
+  let res;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 120000);
+    const resp = await fetch("/api/replay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode, items, index, engine, sequential,
+        stop_on_error: stopOnError,
+        use_index_mapping: useMapping,
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    res = await resp.json();
+  } catch (e) {
+    setJobStatus("failed", "request failed");
+    appendLogLine(e.name === "AbortError"
+      ? "Timed out waiting for server. The job may still be running. Check Logs."
+      : String(e));
+    return null;
+  }
+  if (!res.ok) {
+    setJobStatus("failed", res.error || "failed");
+    appendLogLine(res.error || "failed");
+    return null;
+  }
+  appendLogLine("Job accepted. Streaming live output...");
+  setJobStatus("running", "live");
+  state.jobId = res.job_id;
+  openLogStream(res.job_id);
+  return res.job_id;
+}
+
+document.getElementById("run-replay").addEventListener("click", () => {
+  const items = buildItemsForReplay();
+  if (!items.length) { alert("Select at least one item."); return; }
+  submitReplayJob({
+    mode: "detections",
+    items,
+    index: getReplayIndexValue() || "test",
+    engine: document.getElementById("replay-engine").value,
+    sequential: document.getElementById("replay-sequential").checked,
+    stopOnError: document.getElementById("replay-stop-on-error").checked,
+    useMapping: getReplayUseMapping(),
+  });
+});
+
+const rpState = { rows: [], filter: "", status: "", indexOptions: [], splunkSynced: false };
+
+function rpToast(msg, ok = true) {
+  const el = document.getElementById("rp-toast");
+  el.textContent = msg;
+  el.className = "rp-toast " + (ok ? "" : "border-red-500 text-red-200");
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 3500);
+}
+
+function rpLogLine(text) {
+  const el = document.getElementById("rp-sync-log");
+  if (!el) return;
+  const div = document.createElement("div");
+  div.className = "log-line";
+  div.textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function rpSourceLabel(source) {
+  const labels = {
+    manual: "① Manual map",
+    splunk_exact: "② Splunk",
+    splunk_normalized: "② Splunk",
+    splunk_ambiguous: "② Splunk (pick)",
+    splunk_ambiguous_st: "② Splunk (pick)",
+    default: "③ Default index",
+  };
+  return labels[source] || source || "—";
+}
+
+function rpStatusBadge(status) {
+  const colors = {
+    splunk_match: "badge-green", mapped: "badge-green", manual_only: "badge-blue",
+    unmapped: "badge-gray", conflict: "text-amber-400", splunk_ambiguous: "text-amber-400",
+    splunk_ambiguous_st: "text-amber-400",
+  };
+  return `<span class="badge ${colors[status] || "badge-gray"}">${escapeHTML(status || "?")}</span>`;
+}
+
+function rpRowTargetIndex(r) {
+  return (r.draft_index != null && r.draft_index !== "") ? r.draft_index : (r.suggested_index || "");
+}
+
+function rpIndexOptionsForRow(r) {
+  const extra = [
+    r.suggested_index,
+    r.manual_index,
+    ...(r.splunk_indexes || []),
+    rpRowTargetIndex(r),
+  ].filter(Boolean);
+  return [...new Set([...rpState.indexOptions, ...extra])].sort((a, b) => a.localeCompare(b));
+}
+
+function rpIndexComboMarkup(rowIdx, value) {
+  const v = escapeHTML(value || "");
+  return `<div class="rp-index-combo" data-row="${rowIdx}">
+    <input type="text" class="rp-index-combo-input apple-input !w-full !py-1.5 !px-2" data-row="${rowIdx}" value="${v}" placeholder="Search index…" autocomplete="off" spellcheck="false"/>
+    <div class="rp-index-combo-menu hidden" role="listbox"></div>
+  </div>`;
+}
+
+function bindRpIndexCombos(root) {
+  root.querySelectorAll(".rp-index-combo").forEach(wrap => {
+    const rowIdx = parseInt(wrap.dataset.row, 10);
+    const input = wrap.querySelector(".rp-index-combo-input");
+    const menu = wrap.querySelector(".rp-index-combo-menu");
+    const r = rpState.rows[rowIdx];
+    if (!input || !menu || !r) return;
+
+    const showMenu = (query) => {
+      const qq = (query || "").trim().toLowerCase();
+      const opts = rpIndexOptionsForRow(r);
+      const filtered = qq ? opts.filter(i => i.toLowerCase().includes(qq)) : opts;
+      if (!rpState.indexOptions.length) {
+        menu.innerHTML = '<div class="index-combo-hint">Sync Splunk (Step 1) to load indexes</div>';
+      } else if (!filtered.length) {
+        menu.innerHTML = '<div class="index-combo-hint">No matching index</div>';
+      } else {
+        const slice = filtered.slice(0, 100);
+        menu.innerHTML = slice.map(i =>
+          `<button type="button" class="index-combo-opt" data-val="${escapeHTML(i)}">${escapeHTML(i)}</button>`
+        ).join("");
+        if (filtered.length > 100) {
+          menu.innerHTML += `<div class="index-combo-more">+${filtered.length - 100} more — keep typing to filter</div>`;
+        }
+      }
+      menu.classList.remove("hidden");
+      menu.querySelectorAll(".index-combo-opt").forEach(btn => {
+        btn.addEventListener("mousedown", e => {
+          e.preventDefault();
+          input.value = btn.dataset.val;
+          if (rpState.rows[rowIdx]) rpState.rows[rowIdx].draft_index = input.value;
+          menu.classList.add("hidden");
+        });
+      });
+    };
+
+    input.addEventListener("focus", () => showMenu(input.value));
+    input.addEventListener("input", () => {
+      if (rpState.rows[rowIdx]) rpState.rows[rowIdx].draft_index = input.value;
+      showMenu(input.value);
+    });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Escape") menu.classList.add("hidden");
+    });
+  });
+}
+
+document.addEventListener("click", e => {
+  if (!e.target.closest(".rp-index-combo") && !e.target.closest("#replay-index-wrap")) {
+    document.querySelectorAll(".rp-index-combo-menu").forEach(m => m.classList.add("hidden"));
+    const rm = document.getElementById("replay-index-menu");
+    if (rm) rm.classList.add("hidden");
+  }
+});
+
+async function saveRpRow(rowIdx) {
+  const r = rpState.rows[rowIdx];
+  if (!r) return;
+  const target = (document.querySelector(`.rp-index-combo-input[data-row="${rowIdx}"]`)?.value || rpRowTargetIndex(r)).trim();
+  if (!target) { rpToast("Target index is required", false); return; }
+  const rep = (r.draft_replay_st != null ? r.draft_replay_st : (r.suggested_replay_sourcetype || r.replay_sourcetype)).trim();
+  const res = await fetch("/api/splunk/mappings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      detection_sourcetype: r.replay_sourcetype,
+      replay_sourcetype: rep || r.replay_sourcetype,
+      target_index: target,
+      notes: "Index Planner manual save",
+    }),
+  }).then(x => x.json());
+  if (!res.ok) {
+    rpToast(res.error || "Save failed", false);
+    return;
+  }
+  rpToast(`Saved: ${r.replay_sourcetype} → ${target}`);
+  await loadRoutingCache(true);
+  await loadIndexPlanner();
+}
+
+function renderRoutePlanner() {
+  const tbody = document.getElementById("rp-table-body");
+  const q = rpState.filter.toLowerCase();
+  const sf = rpState.status;
+  const visible = [];
+  rpState.rows.forEach((r, i) => {
+    if (sf && r.status !== sf) return;
+    if (q && ![r.replay_sourcetype, (r.splunk_indexes || []).join(" "), r.suggested_index, r.manual_index, rpRowTargetIndex(r)]
+      .join(" ").toLowerCase().includes(q)) return;
+    visible.push({ r, i });
+  });
+  if (!visible.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No rows match.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = visible.map(({ r, i }) => {
+    const splunkIdx = (r.splunk_indexes || []).join(", ") || "—";
+    const inSplunk = r.in_splunk ? '<span class="text-emerald-400">Yes</span>' : '<span class="text-slate-500">No</span>';
+    const tgt = rpRowTargetIndex(r);
+    return `<tr data-row-idx="${i}">
+      <td class="font-mono text-[11px] max-w-[160px] truncate" title="${escapeHTML(r.replay_sourcetype)}">${escapeHTML(r.replay_sourcetype)}</td>
+      <td>${inSplunk}</td>
+      <td class="text-[11px] max-w-[120px] truncate" title="${escapeHTML(splunkIdx)}">${escapeHTML(splunkIdx)}</td>
+      <td class="text-[10px] text-slate-400">${escapeHTML(rpSourceLabel(r.source))}</td>
+      <td>${rpIndexComboMarkup(i, tgt)}</td>
+      <td>${rpStatusBadge(r.status)}</td>
+      <td class="whitespace-nowrap">
+        <button type="button" class="rp-save-map btn-secondary text-[10px] px-2 py-1" data-row="${i}">Save map</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  bindRpIndexCombos(tbody);
+  tbody.querySelectorAll(".rp-save-map").forEach(btn => {
+    btn.addEventListener("click", () => saveRpRow(parseInt(btn.dataset.row, 10)));
+  });
+}
+
+function updateWaterfall(synced, hasRoutes, mapCount) {
+  document.getElementById("wf-step-1").classList.toggle("done", synced);
+  document.getElementById("wf-step-2").classList.toggle("done", hasRoutes);
+  document.getElementById("wf-step-3").classList.toggle("done", mapCount > 0);
+  document.getElementById("wf-d1").textContent = synced ? "Inventory loaded" : "Click Sync Splunk";
+  document.getElementById("wf-d2").textContent = hasRoutes ? `${rpState.rows.length} sourcetypes` : "Click Build routes";
+}
+
+async function loadSplunkInventoryPanel() {
+  const inv = await fetch("/api/splunk/index-sourcetypes").then(r => r.json());
+  rpState.indexOptions = inv.indexes || [];
+  rpState.splunkSynced = !!(inv.last_sync_at && (inv.items || []).length);
+  document.getElementById("stat-pair-count").textContent = inv.items?.length || 0;
+  document.getElementById("stat-last-sync").textContent =
+    inv.last_sync_at ? inv.last_sync_at.slice(0, 19).replace("T", " ") : "Never";
+  const tbody = document.getElementById("inv-table-body");
+  if (!inv.items?.length) {
+    tbody.innerHTML = '<tr><td colspan="2" class="empty-state">Sync Splunk (Step 1).</td></tr>';
+  } else {
+    tbody.innerHTML = inv.items.slice(0, 500).map(p =>
+      `<tr><td class="font-mono text-cyan-400/90">${escapeHTML(p.index_name)}</td><td class="font-mono text-[11px]">${escapeHTML(p.sourcetype)}</td></tr>`
+    ).join("");
+    if (inv.items.length > 500) tbody.innerHTML += `<tr><td colspan="2" class="text-slate-500 text-[11px]">+${inv.items.length - 500} more (filter to narrow)</td></tr>`;
+  }
+  return inv;
+}
+
+async function loadMappingsCount() {
+  const maps = await fetch("/api/splunk/mappings").then(r => r.json());
+  document.getElementById("stat-map-count").textContent = maps.items?.length || 0;
+  return maps.items?.length || 0;
+}
+
+async function loadIndexPlanner() {
+  document.getElementById("rp-sync-hint").textContent = "Loading...";
+  const inv = await loadSplunkInventoryPanel();
+  const mapCount = await loadMappingsCount();
+  const cfg = await fetch("/api/config").then(r => r.json());
+
+  const data = await fetch("/api/splunk/routing-matrix").then(r => r.json());
+  if (!data.ok) {
+    document.getElementById("rp-sync-hint").textContent = data.error || "Failed";
+    updateWaterfall(rpState.splunkSynced, false, mapCount);
+    return;
+  }
+  rpState.rows = (data.rows || []).map(r => ({ ...r, draft_index: null, draft_replay_st: null }));
+  if (data.splunk_indexes?.length) {
+    rpState.indexOptions = [...new Set([...rpState.indexOptions, ...data.splunk_indexes])].sort();
+  }
+  const st = data.stats || {};
+  document.getElementById("rp-stat-total").textContent = data.total_replay_sourcetypes || 0;
+  document.getElementById("rp-stat-ready").textContent = (st.splunk_match || 0) + (st.mapped || 0) + (st.manual_only || 0);
+  document.getElementById("rp-stat-unmapped").textContent = st.unmapped || 0;
+  document.getElementById("rp-sync-hint").textContent = data.splunk_synced
+    ? `Splunk synced ${data.last_sync_at || ""}. Search Target index dropdown → Save map. Waterfall: manual → Splunk → default (${cfg.default_index || "test"}).`
+    : "Step 1: Sync Splunk (Settings → REST) for accurate index suggestions.";
+  if (data.warning) document.getElementById("rp-sync-hint").textContent += " | " + data.warning;
+  updateWaterfall(data.splunk_synced, rpState.rows.length > 0, mapCount);
+  renderRoutePlanner();
+}
+
+document.getElementById("rp-refresh").addEventListener("click", loadIndexPlanner);
+document.getElementById("rp-search").addEventListener("input", e => { rpState.filter = e.target.value; renderRoutePlanner(); });
+document.getElementById("rp-filter").addEventListener("change", e => { rpState.status = e.target.value; renderRoutePlanner(); });
+document.getElementById("rp-sync").addEventListener("click", async () => {
+  document.getElementById("rp-sync-log").innerHTML = "";
+  rpLogLine("Starting Splunk sync...");
+  const r = await fetch("/api/splunk/sync-indexes", { method: "POST" }).then(res => res.json());
+  if (!r.ok || !r.job_id) { rpLogLine(r.error || "Sync failed"); return; }
+  const es = new EventSource(`/api/replay/stream/${r.job_id}`);
+  es.onmessage = e => {
+    if (e.data === "__END__") { es.close(); loadRoutingCache(true); loadIndexPlanner(); return; }
+    rpLogLine(e.data);
+  };
+});
+document.getElementById("rp-auto-match").addEventListener("click", async () => {
+  const r = await fetch("/api/splunk/mappings/auto-match", { method: "POST" }).then(res => res.json());
+  if (r.ok) { rpToast(`Auto-match: ${r.created} created, ${r.updated} updated`); loadRoutingCache(true); loadIndexPlanner(); }
+  else rpToast(r.error || "Auto-match failed", false);
+});
+document.getElementById("rp-apply-splunk").addEventListener("click", async () => {
+  if (!confirm("Save Splunk-matched indexes for all unmapped replay sourcetypes?")) return;
+  const r = await fetch("/api/splunk/apply-routing-suggestions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ only_unmapped: true }) }).then(res => res.json());
+  if (r.ok) { rpToast(`Applied ${r.created} mapping(s)`); loadRoutingCache(true); loadIndexPlanner(); }
+  else rpToast(r.error || "Failed", false);
+});
+document.getElementById("inv-search").addEventListener("input", async () => {
+  const q = document.getElementById("inv-search").value;
+  const inv = await fetch(`/api/splunk/index-sourcetypes?q=${encodeURIComponent(q)}`).then(r => r.json());
+  document.getElementById("inv-table-body").innerHTML = (inv.items || []).map(p =>
+    `<tr><td class="font-mono text-cyan-400/90">${escapeHTML(p.index_name)}</td><td class="font-mono text-[11px]">${escapeHTML(p.sourcetype)}</td></tr>`
+  ).join("") || '<tr><td colspan="2" class="empty-state">No matches.</td></tr>';
+});
+function showHecAlert(msg) {
+  const el = document.getElementById("hec-alert");
+  if (!msg) { el.classList.add("hidden"); return; }
+  el.innerHTML = msg;
+  el.classList.remove("hidden");
+}
+
+function applyConnectionModeUI(remote) {
+  state.remote = remote;
+  document.getElementById("local-paths").classList.toggle("hidden", remote);
+  document.getElementById("remote-paths").classList.toggle("hidden", !remote);
+  const eng = document.getElementById("replay-engine").value;
+  populateReplayEngineSelect(document.getElementById("replay-engine"), remote, eng);
+  populateReplayEngineSelect(document.getElementById("cfg-replay-engine"), remote,
+    document.getElementById("cfg-replay-engine").value || eng);
+  document.getElementById("test-remote-ssh").classList.toggle("hidden", !remote);
+  document.getElementById("cfg-test-ssh").classList.toggle("hidden", !remote);
+  document.getElementById("cfg-test-hec-remote").classList.toggle("hidden", !remote);
+  document.getElementById("source-badge").textContent = remote ? "Remote SSH" : "Local";
+  document.getElementById("source-badge").className = remote ? "badge badge-blue" : "badge badge-gray";
+  updateEngineHint();
+}
+
+document.querySelectorAll('input[name="conn-mode"]').forEach(r => {
+  r.addEventListener("change", () => {
+    applyConnectionModeUI(r.value === "remote");
+  });
+});
+
+document.getElementById("cfg-ssh-tunnel").addEventListener("change", e => {
+  document.getElementById("tunnel-fields").classList.toggle("hidden", !e.target.checked);
+});
+
+async function loadConfig() {
+  const cfg = await fetch("/api/config").then(r => r.json());
+  const remote = cfg.connection_mode === "remote";
+  document.querySelector(`input[name="conn-mode"][value="${remote ? "remote" : "local"}"]`).checked = true;
+  applyConnectionModeUI(remote);
+
+  document.getElementById("cfg-host").value = cfg.splunk_host || "";
+  document.getElementById("cfg-port").value = cfg.splunk_port || 8088;
+  document.getElementById("cfg-https").checked = !!cfg.use_https;
+  document.getElementById("cfg-verify").checked = !!cfg.verify_tls;
+  document.getElementById("cfg-index").value = cfg.default_index || "test";
+  document.getElementById("cfg-tr-local").value = cfg.local_total_replay_dir || "";
+  document.getElementById("cfg-local-python").value = cfg.local_python_cmd || "python3";
+  document.getElementById("cfg-sc").value = cfg.security_content_path || "";
+  document.getElementById("cfg-ad").value = cfg.attack_data_path || "";
+  document.getElementById("cfg-tr-remote").value = cfg.remote_total_replay_dir || "";
+  document.getElementById("cfg-sc-remote").value = cfg.remote_security_content_path || "";
+  document.getElementById("cfg-ad-remote").value = cfg.remote_attack_data_path || "";
+  document.getElementById("cfg-remote-python").value = cfg.remote_python_cmd || "python3";
+  populateReplayEngineSelect(document.getElementById("cfg-replay-engine"), remote, cfg.replay_engine || (remote ? "remote_cli" : "local_cli"));
+  populateReplayEngineSelect(document.getElementById("replay-engine"), remote, cfg.replay_engine || (remote ? "remote_cli" : "local_cli"));
+
+  document.getElementById("cfg-token").value = "";
+  const tokEl = document.getElementById("cfg-token-status");
+  if (!cfg.hec_token_preview) {
+    tokEl.textContent = "No token saved";
+    tokEl.className = "text-[12px] text-apple-muted mt-2";
+  } else if (cfg.hec_token_valid === false) {
+    tokEl.innerHTML = `<span class="text-[#d70015]">Invalid token saved: ${escapeHTML(cfg.hec_token_warning || "paste the HEC UUID, not a URL")}</span>`;
+    tokEl.className = "text-[12px] mt-2";
+  } else {
+    tokEl.textContent = `Token saved (${cfg.hec_token_preview})`;
+    tokEl.className = "text-[12px] text-apple-muted mt-2";
+  }
+
+  document.getElementById("cfg-ssh-host").value = cfg.ssh_host || "";
+  document.getElementById("cfg-ssh-port").value = cfg.ssh_port || 22;
+  document.getElementById("cfg-ssh-user").value = cfg.ssh_user || "";
+  document.getElementById("cfg-ssh-key").value = cfg.ssh_key_path || "";
+  document.getElementById("cfg-ssh-pass").value = "";
+  document.getElementById("cfg-ssh-pass-status").textContent =
+    cfg.ssh_password_set ? "Password saved" : "No password saved";
+  document.getElementById("cfg-ssh-tunnel").checked = !!cfg.ssh_enabled;
+  document.getElementById("cfg-ssh-remote").value = cfg.ssh_remote_host || "";
+  document.getElementById("tunnel-fields").classList.toggle("hidden", !cfg.ssh_enabled);
+  document.getElementById("cfg-mgmt-port").value = cfg.splunk_mgmt_port || 8089;
+  document.getElementById("cfg-mgmt-https").checked = cfg.splunk_mgmt_use_https !== false;
+  document.getElementById("cfg-mgmt-token").value = "";
+  const mgmtTokEl = document.getElementById("cfg-mgmt-token-status");
+  if (!cfg.splunk_mgmt_token_preview) {
+    mgmtTokEl.textContent = "No management token saved (sync will try HEC token or username/password)";
+    mgmtTokEl.className = "text-[12px] text-apple-muted mt-2";
+  } else if (cfg.splunk_mgmt_token_valid === false) {
+    mgmtTokEl.innerHTML = `<span class="text-[#d70015]">Invalid token saved: ${escapeHTML(cfg.splunk_mgmt_token_warning || "paste token UUID, not a URL")}</span>`;
+    mgmtTokEl.className = "text-[12px] mt-2";
+  } else {
+    mgmtTokEl.textContent = `Management token saved (${cfg.splunk_mgmt_token_preview})`;
+    mgmtTokEl.className = "text-[12px] text-apple-muted mt-2";
+  }
+  document.getElementById("cfg-splunk-user").value = cfg.splunk_username || "";
+  document.getElementById("cfg-splunk-pass").value = "";
+  document.getElementById("cfg-use-mapping").checked = cfg.use_index_mapping !== false;
+  state.configUseMapping = cfg.use_index_mapping !== false;
+  state.replayIndexManual = false;
+  await loadRoutingCache();
+  await loadSplunkIndexDropdown(cfg.default_index || "test");
+
+  updateTunnelStatus(cfg.ssh_tunnel);
+  updateSshSessionStatus(cfg.ssh_session);
+  updateConnStatus(cfg);
+  if (cfg.hec_token_valid === false) {
+    showHecAlert(
+      `<strong>Invalid HEC token saved.</strong> ${escapeHTML(cfg.hec_token_warning || "")} ` +
+      `Open <strong>Settings</strong>, paste the Splunk HEC token UUID (not a URL), click <strong>Save settings</strong>, then <strong>Test Splunk HEC</strong>.`
+    );
+  } else {
+    showHecAlert("");
+  }
+}
+
+function updateTunnelStatus(tunnel) {
+  const el = document.getElementById("cfg-ssh-tunnel-status");
+  const disc = document.getElementById("cfg-ssh-disconnect");
+  if (tunnel?.connected) {
+    const parts = [];
+    if (tunnel.local_port) parts.push(`HEC :${tunnel.local_port}`);
+    if (tunnel.mgmt_local_port) parts.push(`REST :${tunnel.mgmt_local_port}`);
+    const detail = parts.length ? parts.join(", ") : "tunnel active";
+    el.innerHTML = `<span class="text-[#1d7d32]">SSH tunnel — ${detail}</span>`;
+    disc.classList.remove("hidden");
+  } else {
+    el.textContent = "";
+    if (!document.getElementById("cfg-ssh-session-status").textContent) {
+      disc.classList.add("hidden");
+    }
+  }
+}
+
+function updateSshSessionStatus(sess) {
+  const el = document.getElementById("cfg-ssh-session-status");
+  const badge = document.getElementById("ssh-badge");
+  if (sess?.connected) {
+    el.innerHTML = `<span class="text-[#1d7d32]">SSH connected to ${escapeHTML(sess.host || "")}</span>`;
+    badge.textContent = "SSH connected";
+    badge.className = "badge badge-green";
+    badge.classList.remove("hidden");
+  } else {
+    el.textContent = sess?.error || "";
+    badge.classList.add("hidden");
+  }
+}
+
+function updateConnStatus(cfg) {
+  const el = document.getElementById("conn-status");
+  if (!cfg.splunk_host) {
+    el.innerHTML = '<span class="text-[#9a6b00]">Splunk not configured</span>';
+    return;
+  }
+  const base = `${cfg.use_https ? "https" : "http"}://${cfg.splunk_host}:${cfg.splunk_port}`;
+  const parts = [cfg.remote_mode ? "Remote" : "Local", base];
+  if (cfg.ssh_tunnel?.connected) parts.push(`tunnel :${cfg.ssh_tunnel.local_port}`);
+  el.textContent = parts.join(" | ");
+}
+
+function buildSaveBody() {
+  const remote = document.querySelector('input[name="conn-mode"]:checked').value === "remote";
+  const body = {
+    connection_mode: remote ? "remote" : "local",
+    splunk_host: document.getElementById("cfg-host").value.trim(),
+    splunk_port: parseInt(document.getElementById("cfg-port").value) || 8088,
+    use_https: document.getElementById("cfg-https").checked,
+    verify_tls: document.getElementById("cfg-verify").checked,
+    default_index: document.getElementById("cfg-index").value.trim() || "test",
+    local_total_replay_dir: document.getElementById("cfg-tr-local").value.trim(),
+    local_python_cmd: document.getElementById("cfg-local-python").value.trim() || "python3",
+    security_content_path: document.getElementById("cfg-sc").value.trim(),
+    attack_data_path: document.getElementById("cfg-ad").value.trim(),
+    remote_total_replay_dir: document.getElementById("cfg-tr-remote").value.trim(),
+    remote_security_content_path: document.getElementById("cfg-sc-remote").value.trim(),
+    remote_attack_data_path: document.getElementById("cfg-ad-remote").value.trim(),
+    remote_python_cmd: document.getElementById("cfg-remote-python").value.trim() || "python3",
+    replay_engine: document.getElementById("cfg-replay-engine").value,
+    ssh_host: document.getElementById("cfg-ssh-host").value.trim(),
+    ssh_port: parseInt(document.getElementById("cfg-ssh-port").value) || 22,
+    ssh_user: document.getElementById("cfg-ssh-user").value.trim(),
+    ssh_key_path: document.getElementById("cfg-ssh-key").value.trim(),
+    ssh_enabled: document.getElementById("cfg-ssh-tunnel").checked,
+    ssh_remote_host: document.getElementById("cfg-ssh-remote").value.trim(),
+    splunk_mgmt_port: parseInt(document.getElementById("cfg-mgmt-port").value) || 8089,
+    splunk_mgmt_use_https: document.getElementById("cfg-mgmt-https").checked,
+    splunk_username: document.getElementById("cfg-splunk-user").value.trim(),
+    use_index_mapping: document.getElementById("cfg-use-mapping").checked,
+  };
+  const sp = document.getElementById("cfg-splunk-pass").value;
+  if (sp) body.splunk_password = sp;
+  const tok = document.getElementById("cfg-token").value;
+  if (tok) body.hec_token = tok;
+  const mgmtTok = document.getElementById("cfg-mgmt-token").value;
+  if (mgmtTok) body.splunk_mgmt_token = mgmtTok;
+  const pass = document.getElementById("cfg-ssh-pass").value;
+  if (pass) body.ssh_password = pass;
+  return body;
+}
+
+document.getElementById("cfg-save").addEventListener("click", async () => {
+  await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildSaveBody()),
+  });
+  document.getElementById("cfg-msg").innerHTML = '<span class="text-[#1d7d32]">Saved</span>';
+  setTimeout(() => document.getElementById("cfg-msg").textContent = "", 2000);
+  loadConfig();
+  loadCatalog();
+  loadSplunkIndexDropdown(null, true);
+});
+
+document.getElementById("cfg-test").addEventListener("click", async () => {
+  document.getElementById("cfg-msg").textContent = "Testing HEC...";
+  const r = await fetch("/api/test-connection", { method: "POST" }).then(r => r.json());
+  if (r.tunnel) updateTunnelStatus(r.tunnel);
+  document.getElementById("cfg-msg").innerHTML = r.ok
+    ? `<span class="text-[#1d7d32]">HEC OK (index ${escapeHTML(r.index || "test")})</span>`
+    : `<span class="text-[#d70015]">${escapeHTML(r.error || r.body || "failed")}</span>`;
+  if (r.ok) showHecAlert("");
+  loadConfig();
+});
+
+document.getElementById("cfg-test-rest").addEventListener("click", async () => {
+  document.getElementById("cfg-msg").textContent = "Testing REST API (management port)...";
+  const r = await fetch("/api/splunk/test-rest", { method: "POST" }).then(res => res.json());
+  if (r.tunnel) updateTunnelStatus(r.tunnel);
+  document.getElementById("cfg-msg").innerHTML = r.ok
+    ? `<span class="text-[#1d7d32]">REST OK — ${escapeHTML(r.mgmt_url || "management API")}</span>`
+    : `<span class="text-[#d70015]">${escapeHTML(r.error || "REST failed")}</span>`;
+  if (r.ok) loadSplunkIndexDropdown(null, true);
+});
+
+document.getElementById("cfg-test-hec-remote").addEventListener("click", async () => {
+  document.getElementById("cfg-msg").textContent = "Testing HEC from remote SSH host...";
+  const r = await fetch("/api/remote/test-hec", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index: document.getElementById("cfg-index").value.trim() || "test" }),
+  }).then(res => res.json());
+  document.getElementById("cfg-msg").innerHTML = r.ok
+    ? `<span class="text-[#1d7d32]">Remote HEC OK (HTTP ${escapeHTML(r.http_code)})</span>`
+    : `<span class="text-[#d70015]">${escapeHTML(r.error || "failed")} (HTTP ${escapeHTML(r.http_code || "?")})</span>`;
+});
+
+async function testSsh() {
+  document.getElementById("cfg-msg").textContent = "Testing SSH...";
+  const r = await fetch("/api/remote/test", { method: "POST" }).then(r => r.json());
+  if (r.ok) {
+    updateSshSessionStatus(r.ssh);
+    if (r.synced_paths) {
+      document.getElementById("cfg-sc-remote").value = r.synced_paths.remote_security_content_path || "";
+      document.getElementById("cfg-ad-remote").value = r.synced_paths.remote_attack_data_path || "";
+    }
+    document.getElementById("cfg-msg").innerHTML = '<span class="text-[#1d7d32]">SSH OK</span>';
+    loadCatalog();
+  } else {
+    document.getElementById("cfg-msg").innerHTML = `<span class="text-[#d70015]">${escapeHTML(r.error || "SSH failed")}</span>`;
+  }
+}
+document.getElementById("cfg-test-ssh").addEventListener("click", testSsh);
+document.getElementById("test-remote-ssh").addEventListener("click", testSsh);
+
+document.getElementById("cfg-sync-paths").addEventListener("click", async () => {
+  const r = await fetch("/api/remote/sync-paths", { method: "POST" }).then(r => r.json());
+  if (r.ok && r.paths) {
+    document.getElementById("cfg-sc-remote").value = r.paths.remote_security_content_path || "";
+    document.getElementById("cfg-ad-remote").value = r.paths.remote_attack_data_path || "";
+    document.getElementById("cfg-msg").innerHTML = '<span class="text-[#1d7d32]">Paths loaded from remote config</span>';
+    loadCatalog();
+  } else {
+    document.getElementById("cfg-msg").innerHTML = `<span class="text-[#d70015]">${escapeHTML(r.error || "sync failed")}</span>`;
+  }
+});
+
+document.getElementById("cfg-sync-paths-local").addEventListener("click", async () => {
+  const r = await fetch("/api/local/sync-paths", { method: "POST" }).then(res => res.json());
+  if (r.ok && r.paths) {
+    document.getElementById("cfg-tr-local").value = r.paths.local_total_replay_dir || "";
+    document.getElementById("cfg-sc").value = r.paths.security_content_path || "";
+    document.getElementById("cfg-ad").value = r.paths.attack_data_path || "";
+    document.getElementById("cfg-msg").innerHTML = '<span class="text-[#1d7d32]">Paths loaded from local config</span>';
+    loadCatalog();
+  } else {
+    document.getElementById("cfg-msg").innerHTML = `<span class="text-[#d70015]">${escapeHTML(r.error || "sync failed")}</span>`;
+  }
+});
+
+document.getElementById("cfg-ssh-disconnect").addEventListener("click", async () => {
+  await fetch("/api/ssh/disconnect", { method: "POST" });
+  updateTunnelStatus(null);
+  updateSshSessionStatus(null);
+  document.getElementById("cfg-ssh-disconnect").classList.add("hidden");
+});
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;",
+  }[c]));
+}
+
+loadConfig().then(() => {
+  loadCatalog();
+});
+</script>
+</body>
+</html>
