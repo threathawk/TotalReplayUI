@@ -25,6 +25,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.cron import CronTrigger
 
+from ssh_connect import ssh_credentials_hint
 from ssh_tunnel import close_tunnel, ensure_tunnel, tunnel_status
 from splunk_client import fetch_splunk_index_names, test_rest_connection
 from local_replay import (
@@ -83,10 +84,10 @@ from remote_client import (
 # ---------------------------------------------------------------------------
 
 APP_DIR = Path(__file__).resolve().parent
-DATA_DIR = APP_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR = Path(os.environ.get("TOTALREPLAY_DATA_DIR", str(APP_DIR / "data")))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "totalreplay.db"
-CONFIG_PATH = DATA_DIR / "config.json"
+CONFIG_PATH = Path(os.environ.get("TOTALREPLAY_CONFIG", str(DATA_DIR / "config.json")))
 DOWNLOAD_CACHE = DATA_DIR / "downloads"
 DOWNLOAD_CACHE.mkdir(exist_ok=True)
 
@@ -173,6 +174,58 @@ def load_config() -> dict:
 
 def save_config(cfg: dict) -> None:
     CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
+
+
+def normalize_connection_mode(value) -> str:
+    """Persist connection_mode as 'local' or 'remote'."""
+    mode = str(value or "local").strip().lower()
+    if mode in ("remote", "ssh", "true", "1"):
+        return "remote"
+    return "local"
+
+
+_REQUEST_CONFIG_KEYS = (
+    "connection_mode",
+    "ssh_host",
+    "ssh_port",
+    "ssh_user",
+    "ssh_password",
+    "ssh_key_path",
+    "remote_total_replay_dir",
+    "remote_security_content_path",
+    "remote_attack_data_path",
+    "remote_python_cmd",
+)
+
+
+def merge_config_from_body(cfg: dict, body: Optional[dict]) -> dict:
+    """Apply unsaved Settings form values (e.g. before Test SSH)."""
+    merged = dict(cfg)
+    if not body:
+        return merged
+    for key in _REQUEST_CONFIG_KEYS:
+        if key not in body:
+            continue
+        val = body[key]
+        if key == "ssh_password" and not str(val or "").strip():
+            continue
+        if key == "connection_mode":
+            merged[key] = normalize_connection_mode(val)
+        elif key == "ssh_port":
+            merged[key] = int(val) if val else 22
+        else:
+            merged[key] = val
+    return merged
+
+
+def config_meta() -> dict[str, Any]:
+    path = CONFIG_PATH.resolve()
+    parent = path.parent
+    return {
+        "path": str(path),
+        "exists": path.exists(),
+        "writable": os.access(parent, os.W_OK),
+    }
 
 
 def validate_hec_token(token: str) -> tuple[bool, Optional[str]]:
@@ -1459,6 +1512,9 @@ def api_config():
         cfg_redacted["ssh_tunnel"] = tunnel_status()
         cfg_redacted["ssh_session"] = ssh_session_status()
         cfg_redacted["remote_mode"] = is_remote_mode(cfg)
+        cfg_redacted["config_meta"] = config_meta()
+        if is_remote_mode(cfg):
+            cfg_redacted["ssh_config_hint"] = ssh_credentials_hint(cfg)
         return jsonify(cfg_redacted)
     cfg = load_config()
     body = request.get_json(force=True)
@@ -1483,6 +1539,15 @@ def api_config():
     ):
         if k in body:
             cfg[k] = body[k]
+    if "connection_mode" in body:
+        cfg["connection_mode"] = normalize_connection_mode(body.get("connection_mode"))
+    if is_remote_mode(cfg):
+        ssh_err = ssh_credentials_hint(cfg)
+        if ssh_err:
+            return jsonify({
+                "ok": False,
+                "error": f"{ssh_err} Settings are stored in {CONFIG_PATH.resolve()}.",
+            }), 400
     mgmt_tok = (cfg.get("splunk_mgmt_token") or "").strip()
     if mgmt_tok:
         ok_mt, mt_err = validate_hec_token(mgmt_tok)
@@ -1491,17 +1556,23 @@ def api_config():
                 "ok": False,
                 "error": f"Management API token (8089): {mt_err}",
             }), 400
-    ok_tok, tok_err = validate_hec_token(cfg.get("hec_token", ""))
-    if not ok_tok:
-        return jsonify({
-            "ok": False,
-            "error": f"{tok_err} Enter the correct token in the HEC token field and click Save settings.",
-        }), 400
+    hec_tok = (cfg.get("hec_token") or "").strip()
+    if hec_tok or "hec_token" in body:
+        ok_tok, tok_err = validate_hec_token(hec_tok)
+        if not ok_tok:
+            return jsonify({
+                "ok": False,
+                "error": f"{tok_err} Enter the correct token in the HEC token field and click Save settings.",
+            }), 400
     save_config(cfg)
     if ssh_fields_changed:
         close_tunnel()
         close_ssh_session()
-    return jsonify({"ok": True})
+    return jsonify({
+        "ok": True,
+        "connection_mode": cfg.get("connection_mode", "local"),
+        "remote_mode": is_remote_mode(cfg),
+    })
 
 
 @app.route("/api/test-connection", methods=["POST"])
@@ -1532,9 +1603,19 @@ def api_ssh_disconnect():
 
 @app.route("/api/remote/test", methods=["POST"])
 def api_remote_test():
-    cfg = load_config()
+    body = request.get_json(silent=True) or {}
+    cfg = merge_config_from_body(load_config(), body)
     if not is_remote_mode(cfg):
-        return jsonify({"ok": False, "error": "Connection mode is not Remote"}), 200
+        return jsonify({
+            "ok": False,
+            "error": (
+                "Connection mode is not Remote. Select Remote server (SSH) and save, "
+                "or click Test SSH after selecting Remote."
+            ),
+        }), 200
+    ssh_err = ssh_credentials_hint(cfg)
+    if ssh_err:
+        return jsonify({"ok": False, "error": ssh_err}), 200
     return jsonify(test_remote_ssh(cfg))
 
 
@@ -1571,7 +1652,13 @@ def api_local_sync_paths():
 
 @app.route("/api/remote/sync-paths", methods=["POST"])
 def api_remote_sync_paths():
-    cfg = load_config()
+    body = request.get_json(silent=True) or {}
+    cfg = merge_config_from_body(load_config(), body)
+    if not is_remote_mode(cfg):
+        return jsonify({"ok": False, "error": "Connection mode is not Remote"}), 200
+    ssh_err = ssh_credentials_hint(cfg)
+    if ssh_err:
+        return jsonify({"ok": False, "error": ssh_err}), 200
     try:
         synced = sync_paths_from_remote_config(cfg)
         cfg.update(synced)

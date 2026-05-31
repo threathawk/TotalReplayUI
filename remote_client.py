@@ -6,6 +6,7 @@ See: https://github.com/splunk/attack_data/tree/master/total_replay
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import threading
 import uuid
@@ -15,12 +16,18 @@ from typing import Any, Callable, Optional
 import paramiko
 import yaml
 
+from ssh_connect import build_ssh_connect_kwargs, open_ssh_client
 from total_replay_cli import build_total_replay_shell_command
 
 _ssh_client: Optional[paramiko.SSHClient] = None
 _ssh_lock = threading.Lock()
 _ssh_meta: dict[str, Any] = {"connected": False, "error": None, "host": None}
-_CONFIG_PATH = Path(__file__).resolve().parent / "data" / "config.json"
+
+
+def config_file_path() -> Path:
+    app_dir = Path(__file__).resolve().parent
+    data_dir = Path(os.environ.get("TOTALREPLAY_DATA_DIR", str(app_dir / "data")))
+    return Path(os.environ.get("TOTALREPLAY_CONFIG", str(data_dir / "config.json")))
 
 
 def ssh_session_status() -> dict[str, Any]:
@@ -46,37 +53,12 @@ def close_ssh_session() -> None:
         _ssh_meta.update(connected=False, error=None, host=None)
 
 
-def _load_pkey(key_path: str) -> paramiko.PKey:
-    from paramiko import RSAKey, Ed25519Key, ECDSAKey
-
-    path = Path(key_path).expanduser()
-    if not path.exists():
-        raise FileNotFoundError(f"SSH key not found: {path}")
-    for key_cls in (Ed25519Key, RSAKey, ECDSAKey):
-        try:
-            return key_cls.from_private_key_file(str(path))
-        except Exception:
-            continue
-    raise ValueError(f"Could not load SSH private key: {path}")
-
-
-def _ssh_connect_params(cfg: dict) -> tuple[str, int, str, Optional[str], Optional[paramiko.PKey]]:
-    host = (cfg.get("ssh_host") or "").strip()
-    user = (cfg.get("ssh_user") or "").strip()
-    port = int(cfg.get("ssh_port") or 22)
-    password = cfg.get("ssh_password") or None
-    key_path = (cfg.get("ssh_key_path") or "").strip()
-    if not host or not user:
-        raise ValueError("SSH host and username are required")
-    pkey = _load_pkey(key_path) if key_path else None
-    if not password and not pkey:
-        raise ValueError("SSH password or private key path is required")
-    return host, port, user, password, pkey
-
-
 def ensure_ssh_client(cfg: dict) -> paramiko.SSHClient:
     global _ssh_client
-    host, port, user, password, pkey = _ssh_connect_params(cfg)
+    kwargs = build_ssh_connect_kwargs(cfg)
+    host = kwargs["hostname"]
+    port = kwargs["port"]
+    user = kwargs["username"]
     sig = (host, port, user)
     with _ssh_lock:
         if _ssh_client is not None:
@@ -85,18 +67,7 @@ def ensure_ssh_client(cfg: dict) -> paramiko.SSHClient:
                 return _ssh_client
             close_ssh_session()
 
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(
-            hostname=host,
-            port=port,
-            username=user,
-            password=password,
-            pkey=pkey,
-            timeout=30,
-            allow_agent=False,
-            look_for_keys=False,
-        )
+        client = open_ssh_client(cfg)
         _ssh_client = client
         _ssh_meta.update(connected=True, error=None, host=host, signature=sig)
         return client
@@ -197,7 +168,8 @@ def ssh_read_file(cfg: dict, remote_path: str) -> str:
 
 
 def is_remote_mode(cfg: dict) -> bool:
-    return cfg.get("connection_mode", "local") == "remote"
+    mode = str(cfg.get("connection_mode") or "local").strip().lower()
+    return mode in ("remote", "ssh", "true", "1")
 
 
 def remote_paths(cfg: dict) -> dict[str, str]:
@@ -378,8 +350,9 @@ def resolve_remote_paths(cfg: dict) -> tuple[dict[str, str], Optional[dict[str, 
 
 def _persist_config_updates(cfg: dict, updates: dict[str, str]) -> None:
     cfg.update(updates)
-    _CONFIG_PATH.parent.mkdir(exist_ok=True)
-    _CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
+    path = config_file_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cfg, indent=2))
 
 
 def ensure_remote_paths(

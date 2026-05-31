@@ -1,6 +1,6 @@
 # Total Replay — Web Console
 
-**Repository:** [github.com/threathawk/TotalReplay-UI](https://github.com/threathawk/TotalReplay-UI)
+**Repository:** [github.com/threathawk/TotalReplayUI](https://github.com/threathawk/TotalReplayUI)
 
 Flask dashboard for [Splunk TOTAL-REPLAY](https://github.com/splunk/attack_data/tree/master/total_replay) and [attack_data](https://github.com/splunk/attack_data). Connect to a remote lab over SSH, browse detections, run attack replays, and send events to Splunk HEC.
 
@@ -30,6 +30,27 @@ python app.py
 ```
 
 Open http://localhost:5055 (listens on `0.0.0.0:5055` for LAN access).
+
+## Deploying from git clone (remote server)
+
+`data/config.json` is **not in git**. After `git clone`, create it on the server:
+
+```bash
+cp data/config.json.example data/config.json
+chmod 600 data/config.json
+```
+
+SSH settings are stored on the **machine that runs** `python app.py`. They are not copied from your laptop.
+
+| Setting | Meaning |
+|--------|---------|
+| **SSH host** | Lab VM the app connects **to** (must be reachable from the app host) |
+| **Private key path** | On the **app host** (e.g. `/home/ubuntu/.ssh/id_rsa`), not the lab VM |
+| **Connection mode** | **Remote server (SSH)** — click **Save settings** |
+
+**Checklist:** Remote mode → Save → enter SSH password → Save again → **Test SSH**. Settings shows **Config file:** — that path must be writable.
+
+Optional: `TOTALREPLAY_DATA_DIR`, `TOTALREPLAY_CONFIG` environment variables.
 
 ## Local setup (TOTAL-REPLAY on this machine)
 

@@ -12,6 +12,8 @@ from typing import Any, Callable, Optional
 
 import paramiko
 
+from ssh_connect import build_ssh_connect_kwargs, open_ssh_client
+
 LogFn = Optional[Callable[[str], None]]
 
 _forwards: dict[str, dict[str, Any]] = {}
@@ -67,47 +69,16 @@ def _say(log: LogFn, msg: str) -> None:
         log(msg)
 
 
-def _load_pkey(key_path: str) -> paramiko.PKey:
-    path = Path(key_path).expanduser()
-    if not path.exists():
-        raise FileNotFoundError(f"SSH key not found: {path}")
-    for key_cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
-        try:
-            return key_cls.from_private_key_file(str(path))
-        except Exception:
-            continue
-    raise ValueError(f"Could not load SSH private key: {path}")
-
-
 def _connect_ssh(cfg: dict, log: LogFn = None) -> paramiko.SSHClient:
-    host = (cfg.get("ssh_host") or cfg.get("splunk_host") or "").strip()
-    user = (cfg.get("ssh_user") or "").strip()
-    port = int(cfg.get("ssh_port") or 22)
-    password = cfg.get("ssh_password") or None
-    key_path = (cfg.get("ssh_key_path") or "").strip()
-    if not host or not user:
-        raise ValueError("SSH host and username are required")
-    if not password and not key_path:
-        raise ValueError("SSH password or private key path is required")
-
+    merged = dict(cfg)
+    if not (merged.get("ssh_host") or "").strip():
+        merged["ssh_host"] = (merged.get("splunk_host") or "").strip()
+    kwargs = build_ssh_connect_kwargs(merged)
+    host = kwargs["hostname"]
+    port = kwargs["port"]
+    user = kwargs["username"]
     _say(log, f"SSH: connecting to {user}@{host}:{port} (timeout {SSH_CONNECT_TIMEOUT}s)...")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    kwargs: dict[str, Any] = {
-        "hostname": host,
-        "port": port,
-        "username": user,
-        "timeout": SSH_CONNECT_TIMEOUT,
-        "banner_timeout": SSH_CONNECT_TIMEOUT,
-        "auth_timeout": SSH_CONNECT_TIMEOUT,
-        "allow_agent": False,
-        "look_for_keys": False,
-    }
-    if key_path:
-        kwargs["pkey"] = _load_pkey(key_path)
-    else:
-        kwargs["password"] = password
-    client.connect(**kwargs)
+    client = open_ssh_client(merged)
     _say(log, "SSH: session established")
     return client
 

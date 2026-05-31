@@ -515,7 +515,7 @@
         <p class="section-sub mb-6">Where attack_data and security_content live.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <label class="radio-card">
-            <input type="radio" name="conn-mode" value="local" checked/>
+            <input type="radio" name="conn-mode" value="local"/>
             <span class="text-[14px] font-medium">Local filesystem</span>
           </label>
           <label class="radio-card">
@@ -590,11 +590,13 @@
             <div id="cfg-ssh-pass-status" class="text-[12px] text-apple-muted mt-2"></div>
           </div>
           <div class="sm:col-span-2">
-            <label class="apple-label" for="cfg-ssh-key">Private key path (this machine)</label>
-            <input id="cfg-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" class="apple-input"/>
+            <label class="apple-label" for="cfg-ssh-key">Private key path (web app host)</label>
+            <input id="cfg-ssh-key" type="text" placeholder="/home/ubuntu/.ssh/id_rsa" class="apple-input"/>
+            <p class="text-[12px] text-apple-faint mt-2">Path on the server where you run <code class="text-cyan-400 text-xs">python app.py</code> — not the SSH target. Leave empty to use <code class="text-cyan-400 text-xs">~/.ssh/id_rsa</code> if present.</p>
           </div>
         </div>
         <div id="cfg-ssh-session-status" class="text-[12px] text-apple-muted mt-3"></div>
+        <p id="cfg-config-path" class="text-[11px] text-apple-faint mt-4 font-mono"></p>
       </div>
 
       <div class="settings-section xl:col-span-2">
@@ -700,8 +702,23 @@ const state = {
   atkIndexOptions: [],
   replayIndexManual: false,
   configUseMapping: true,
+  settingsDirty: false,
+  loadConfigSeq: 0,
   routingCache: { loaded: false, mappings: {}, inventory: {}, defaultIndex: "test", splunkSynced: false },
 };
+
+function isRemoteConnectionMode(mode) {
+  const m = String(mode || "local").trim().toLowerCase();
+  return m === "remote" || m === "ssh" || m === "true" || m === "1";
+}
+
+function setConnectionModeRadio(remote) {
+  const value = remote ? "remote" : "local";
+  document.querySelectorAll('input[name="conn-mode"]').forEach(inp => {
+    inp.checked = inp.value === value;
+  });
+  applyConnectionModeUI(remote);
+}
 
 function getReplayUseMapping() {
   return state.configUseMapping !== false;
@@ -724,7 +741,6 @@ function switchTab(tabId) {
     loadSplunkIndexDropdown();
     bindAttackIndexCombo();
   }
-  if (tabId === "settings") loadConfig();
 }
 document.querySelectorAll(".tab").forEach(btn => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
@@ -1890,7 +1906,8 @@ function applyConnectionModeUI(remote) {
 
 document.querySelectorAll('input[name="conn-mode"]').forEach(r => {
   r.addEventListener("change", () => {
-    applyConnectionModeUI(r.value === "remote");
+    state.settingsDirty = true;
+    setConnectionModeRadio(r.value === "remote");
   });
 });
 
@@ -1899,10 +1916,12 @@ document.getElementById("cfg-ssh-tunnel").addEventListener("change", e => {
 });
 
 async function loadConfig() {
+  const seq = ++state.loadConfigSeq;
   const cfg = await fetch("/api/config").then(r => r.json());
-  const remote = cfg.connection_mode === "remote";
-  document.querySelector(`input[name="conn-mode"][value="${remote ? "remote" : "local"}"]`).checked = true;
-  applyConnectionModeUI(remote);
+  if (seq !== state.loadConfigSeq) return cfg;
+  state.settingsDirty = false;
+  const remote = isRemoteConnectionMode(cfg.connection_mode) || !!cfg.remote_mode;
+  setConnectionModeRadio(remote);
 
   document.getElementById("cfg-host").value = cfg.splunk_host || "";
   document.getElementById("cfg-port").value = cfg.splunk_port || 8088;
@@ -1938,8 +1957,17 @@ async function loadConfig() {
   document.getElementById("cfg-ssh-user").value = cfg.ssh_user || "";
   document.getElementById("cfg-ssh-key").value = cfg.ssh_key_path || "";
   document.getElementById("cfg-ssh-pass").value = "";
-  document.getElementById("cfg-ssh-pass-status").textContent =
-    cfg.ssh_password_set ? "Password saved" : "No password saved";
+  const passStatusEl = document.getElementById("cfg-ssh-pass-status");
+  if (cfg.ssh_password_set) {
+    passStatusEl.textContent = "Password saved (re-enter to change)";
+    passStatusEl.className = "text-[12px] text-apple-muted mt-2";
+  } else if (cfg.ssh_config_hint && isRemoteConnectionMode(cfg.connection_mode)) {
+    passStatusEl.innerHTML = `<span class="text-[#9a6b00]">${escapeHTML(cfg.ssh_config_hint)}</span>`;
+    passStatusEl.className = "text-[12px] mt-2";
+  } else {
+    passStatusEl.textContent = "No password saved — enter password and click Save settings";
+    passStatusEl.className = "text-[12px] text-apple-muted mt-2";
+  }
   document.getElementById("cfg-ssh-tunnel").checked = !!cfg.ssh_enabled;
   document.getElementById("cfg-ssh-remote").value = cfg.ssh_remote_host || "";
   document.getElementById("tunnel-fields").classList.toggle("hidden", !cfg.ssh_enabled);
@@ -1968,6 +1996,12 @@ async function loadConfig() {
   updateTunnelStatus(cfg.ssh_tunnel);
   updateSshSessionStatus(cfg.ssh_session);
   updateConnStatus(cfg);
+  const cfgPathEl = document.getElementById("cfg-config-path");
+  if (cfgPathEl && cfg.config_meta) {
+    const m = cfg.config_meta;
+    const warn = m.writable ? "" : " — directory not writable; fix permissions or set TOTALREPLAY_CONFIG";
+    cfgPathEl.textContent = `Config file: ${m.path}${m.exists ? "" : " (not created yet)"}${warn}`;
+  }
   if (cfg.hec_token_valid === false) {
     showHecAlert(
       `<strong>Invalid HEC token saved.</strong> ${escapeHTML(cfg.hec_token_warning || "")} ` +
@@ -2023,7 +2057,8 @@ function updateConnStatus(cfg) {
 }
 
 function buildSaveBody() {
-  const remote = document.querySelector('input[name="conn-mode"]:checked').value === "remote";
+  const checked = document.querySelector('input[name="conn-mode"]:checked');
+  const remote = checked ? checked.value === "remote" : state.remote;
   const body = {
     connection_mode: remote ? "remote" : "local",
     splunk_host: document.getElementById("cfg-host").value.trim(),
@@ -2063,14 +2098,27 @@ function buildSaveBody() {
 }
 
 document.getElementById("cfg-save").addEventListener("click", async () => {
-  await fetch("/api/config", {
+  const msg = document.getElementById("cfg-msg");
+  msg.textContent = "Saving…";
+  const res = await fetch("/api/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildSaveBody()),
   });
-  document.getElementById("cfg-msg").innerHTML = '<span class="text-[#1d7d32]">Saved</span>';
-  setTimeout(() => document.getElementById("cfg-msg").textContent = "", 2000);
-  loadConfig();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    msg.innerHTML = `<span class="text-[#d70015]">${escapeHTML(data.error || "Save failed — check HEC token and settings")}</span>`;
+    return;
+  }
+  if (isRemoteConnectionMode(data.connection_mode)) {
+    setConnectionModeRadio(true);
+  } else if (data.connection_mode) {
+    setConnectionModeRadio(false);
+  }
+  msg.innerHTML = `<span class="text-[#1d7d32]">Saved (${isRemoteConnectionMode(data.connection_mode) ? "Remote SSH" : "Local"})</span>`;
+  setTimeout(() => { msg.textContent = ""; }, 3000);
+  state.settingsDirty = false;
+  await loadConfig();
   loadCatalog();
   loadSplunkIndexDropdown(null, true);
 });
@@ -2109,8 +2157,12 @@ document.getElementById("cfg-test-hec-remote").addEventListener("click", async (
 });
 
 async function testSsh() {
-  document.getElementById("cfg-msg").textContent = "Testing SSH...";
-  const r = await fetch("/api/remote/test", { method: "POST" }).then(r => r.json());
+  document.getElementById("cfg-msg").textContent = "Testing SSH (using current form values)...";
+  const r = await fetch("/api/remote/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildSaveBody()),
+  }).then(res => res.json());
   if (r.ok) {
     updateSshSessionStatus(r.ssh);
     if (r.synced_paths) {
@@ -2127,7 +2179,11 @@ document.getElementById("cfg-test-ssh").addEventListener("click", testSsh);
 document.getElementById("test-remote-ssh").addEventListener("click", testSsh);
 
 document.getElementById("cfg-sync-paths").addEventListener("click", async () => {
-  const r = await fetch("/api/remote/sync-paths", { method: "POST" }).then(r => r.json());
+  const r = await fetch("/api/remote/sync-paths", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildSaveBody()),
+  }).then(res => res.json());
   if (r.ok && r.paths) {
     document.getElementById("cfg-sc-remote").value = r.paths.remote_security_content_path || "";
     document.getElementById("cfg-ad-remote").value = r.paths.remote_attack_data_path || "";
