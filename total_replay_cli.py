@@ -6,6 +6,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from splunk_transport import resolve_hec_host
+
 
 def build_total_replay_shell_command(
     tr_dir: str,
@@ -23,7 +25,7 @@ def build_total_replay_shell_command(
     py = (python_cmd or "python3").strip() or "python3"
     parts = [f"cd {shlex.quote(tr)}"]
 
-    host = (cfg.get("splunk_host") or "").strip()
+    host = resolve_hec_host(cfg)
     token = (cfg.get("hec_token") or "").strip()
     if "://" in token or token.startswith("http"):
         raise ValueError(

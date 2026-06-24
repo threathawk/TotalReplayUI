@@ -3,8 +3,39 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
+
+
+def normalize_splunk_host(host: str) -> str:
+    """Strip scheme/path/port if user pasted a full Splunk or HEC URL into host field."""
+    h = (host or "").strip()
+    if not h:
+        return ""
+    if "://" in h:
+        parsed = urlparse(h if "://" in h else f"https://{h}")
+        h = (parsed.hostname or "").strip()
+    h = h.split("/")[0].strip()
+    return h
+
+
+def resolve_hec_host(cfg: dict) -> str:
+    return normalize_splunk_host(
+        str(cfg.get("splunk_hec_host") or cfg.get("splunk_host") or "").strip()
+    )
+
+
+def resolve_mgmt_host(cfg: dict) -> str:
+    return normalize_splunk_host(
+        str(cfg.get("splunk_mgmt_host") or cfg.get("splunk_host") or "").strip()
+    )
+
+
+DEFAULT_INDEX_PLANNER_SEARCH = (
+    "| tstats count where earliest=-365d latest=now index=* "
+    "by index sourcetype | fields - count"
+)
 
 
 def mgmt_use_https(cfg: dict) -> bool:

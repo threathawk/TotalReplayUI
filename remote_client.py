@@ -17,6 +17,7 @@ import paramiko
 import yaml
 
 from ssh_connect import build_ssh_connect_kwargs, open_ssh_client
+from splunk_transport import resolve_hec_host
 from total_replay_cli import build_total_replay_shell_command
 
 _ssh_client: Optional[paramiko.SSHClient] = None
@@ -797,7 +798,7 @@ def test_remote_ssh(cfg: dict) -> dict[str, Any]:
 
 def test_hec_from_remote(cfg: dict, index_name: str = "test") -> dict[str, Any]:
     """Run a HEC POST from the remote SSH host (same path as TOTAL-REPLAY CLI)."""
-    host = (cfg.get("splunk_host") or "").strip()
+    host = resolve_hec_host(cfg)
     token = (cfg.get("hec_token") or "").strip()
     port = int(cfg.get("splunk_port") or 8088)
     scheme = "https" if cfg.get("use_https") else "http"

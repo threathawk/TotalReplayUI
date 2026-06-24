@@ -13,6 +13,7 @@ from typing import Any, Callable, Optional
 import paramiko
 
 from ssh_connect import build_ssh_connect_kwargs, open_ssh_client
+from splunk_transport import resolve_hec_host, resolve_mgmt_host
 
 LogFn = Optional[Callable[[str], None]]
 
@@ -151,6 +152,15 @@ def _accept_loop(
         ).start()
 
 
+def _remote_bind_host(cfg: dict, key: str) -> str:
+    override = (cfg.get("ssh_remote_host") or "").strip()
+    if override:
+        return override
+    if key == "mgmt":
+        return resolve_mgmt_host(cfg)
+    return resolve_hec_host(cfg)
+
+
 def ensure_port_forward(
     cfg: dict,
     remote_port: int,
@@ -166,11 +176,10 @@ def ensure_port_forward(
         _close_forward(key)
         return True, "direct", None
 
-    ssh_host = (cfg.get("ssh_host") or cfg.get("splunk_host") or "").strip()
+    ssh_host = (cfg.get("ssh_host") or resolve_hec_host(cfg) or "").strip()
     ssh_user = (cfg.get("ssh_user") or "").strip()
-    splunk_host = (cfg.get("splunk_host") or "").strip()
     ssh_port = int(cfg.get("ssh_port") or 22)
-    remote_bind_host = (cfg.get("ssh_remote_host") or splunk_host).strip()
+    remote_bind_host = _remote_bind_host(cfg, key)
     sig = (ssh_host, ssh_port, ssh_user, remote_bind_host, remote_port, key)
 
     with _tunnel_lock:

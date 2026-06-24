@@ -367,6 +367,22 @@
         <select id="replay-engine" class="apple-select mb-2"></select>
         <p id="engine-hint" class="text-[12px] text-apple-faint mb-5 leading-relaxed"></p>
 
+        <div class="space-y-2 mb-5 text-[14px] text-apple-text">
+          <p class="text-[12px] text-amber-400/90 leading-relaxed">
+            These options apply only when <strong>Delivery method</strong> is
+            <span class="font-mono">Send events to Splunk via HEC (this web app)</span>.
+            Remote/local CLI sends the whole file as one Splunk event.
+          </p>
+          <label class="flex items-center gap-3 cursor-pointer text-apple-muted">
+            <input id="atk-hec-add-ds" type="checkbox" class="w-[18px] h-[18px] accent-cyan-400"/>
+            Add field <span class="font-mono text-[12px]">data_source=totalreplay</span> to HEC events
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer text-apple-muted">
+            <input id="atk-hec-force-now" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]"/>
+            Force event time (<span class="font-mono text-[12px]">_time</span>) to <strong>now</strong> for HEC
+          </label>
+        </div>
+
         <div class="space-y-3 mb-5 text-[14px] text-apple-text">
           <label class="flex items-center gap-3 cursor-pointer">
             <input id="replay-sequential" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]" checked/>
@@ -405,7 +421,7 @@
       <div class="waterfall-step" id="wf-step-1">
         <div class="step-n">Step 1</div>
         <div class="step-t">Splunk inventory</div>
-        <div class="step-d" id="wf-d1">Sync REST API (tstats)</div>
+        <div class="step-d" id="wf-d1">Sync REST API (custom SPL search supported)</div>
         <button type="button" id="rp-sync" class="btn-secondary !w-auto mt-2 text-[11px] px-3 py-1">Sync Splunk</button>
       </div>
       <div class="waterfall-step" id="wf-step-2">
@@ -429,6 +445,16 @@
             <div class="stat-pill"><span id="stat-pair-count" class="val">0</span><span class="lbl">Pairs</span></div>
             <div class="stat-pill"><span id="stat-last-sync" class="val text-sm">—</span><span class="lbl">Last sync</span></div>
           </div>
+          <details class="mb-3 border border-slate-800 rounded-lg p-3">
+            <summary class="cursor-pointer text-[13px] font-medium text-slate-300">Custom SPL search</summary>
+            <p class="text-[12px] text-slate-500 mt-2 mb-2">Override the default tstats query. Results must include <span class="font-mono">index</span> and <span class="font-mono">sourcetype</span> fields. Splunk Cloud sync can take several minutes — watch the log for <em>Search state</em> updates.</p>
+            <textarea id="rp-inventory-search" rows="4" class="apple-input font-mono text-[11px] w-full mb-2" spellcheck="false"></textarea>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="rp-save-search" class="btn-secondary !w-auto text-[11px] px-3 py-1">Save search</button>
+              <button type="button" id="rp-reset-search" class="btn-ghost !w-auto text-[11px] px-3 py-1">Reset to default</button>
+            </div>
+            <div id="rp-search-status" class="text-[11px] text-slate-500 mt-2"></div>
+          </details>
           <input id="inv-search" type="text" placeholder="Filter inventory..." class="apple-input mb-2"/>
           <div class="catalog-scroll max-h-[200px]">
             <table class="data-table">
@@ -601,15 +627,21 @@
 
       <div class="settings-section xl:col-span-2">
         <h2 class="section-head mb-1">Splunk HEC &amp; REST API</h2>
-        <p class="section-sub mb-6">HEC port (8088) and token for replay ingest. Management port (8089) and its own token for Index Planner sync — use a separate token if your HEC token cannot run searches.</p>
+        <p class="section-sub mb-6">Separate hostnames for HEC ingest (replay) and management REST (Index Planner). Leave management host blank to use the HEC host. Each endpoint has its own port, HTTPS option, and token.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="apple-label" for="cfg-host">Splunk host</label>
-            <input id="cfg-host" type="text" placeholder="192.168.100.63" class="apple-input"/>
+            <label class="apple-label" for="cfg-hec-host">HEC host (ingest)</label>
+            <input id="cfg-hec-host" type="text" placeholder="http-inputs-&lt;stack&gt;.splunkcloud.com or 192.168.1.100" class="apple-input"/>
+            <p class="text-[12px] text-apple-faint mt-2">Hostname only (no <code class="text-cyan-400 text-xs">https://</code>). Splunk Cloud HEC: enable <strong>Use HTTPS</strong> below and port <strong>443</strong>.</p>
           </div>
           <div>
             <label class="apple-label" for="cfg-port">HEC port</label>
             <input id="cfg-port" type="number" value="8088" class="apple-input"/>
+          </div>
+          <div>
+            <label class="apple-label" for="cfg-mgmt-host">Management API host (REST / Index Planner)</label>
+            <input id="cfg-mgmt-host" type="text" placeholder="Optional — same as HEC if blank" class="apple-input"/>
+            <p class="text-[12px] text-apple-faint mt-2">On-prem often same IP as HEC. Splunk Cloud: <code class="text-cyan-400 text-xs">godaddy.splunkcloud.com</code>, HTTPS, port <strong>8089</strong> (IP must be allowlisted in Splunk Cloud).</p>
           </div>
           <div>
             <label class="apple-label" for="cfg-mgmt-port">Management API port</label>
@@ -648,6 +680,14 @@
           </label>
           <label class="flex items-center gap-3 text-[14px] cursor-pointer">
             <input id="cfg-verify" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]"/> Verify TLS
+          </label>
+          <label class="flex items-center gap-3 text-[14px] cursor-pointer sm:col-span-2">
+            <input id="cfg-hec-add-ds" type="checkbox" class="w-[18px] h-[18px] accent-cyan-400" checked/>
+            <span>Add field <span class="font-mono text-[12px]">data_source=totalreplay</span> to all HEC events</span>
+          </label>
+          <label class="flex items-center gap-3 text-[14px] cursor-pointer sm:col-span-2">
+            <input id="cfg-hec-force-now" type="checkbox" class="w-[18px] h-[18px] accent-[#0071e3]"/>
+            <span>Force event time (<span class="font-mono text-[12px]">_time</span>) to <strong>now</strong> when sending via HEC</span>
           </label>
           <div>
             <label class="apple-label" for="cfg-index">Default index</label>
@@ -704,8 +744,16 @@ const state = {
   configUseMapping: true,
   settingsDirty: false,
   loadConfigSeq: 0,
+  inventorySearchDirty: false,
   routingCache: { loaded: false, mappings: {}, inventory: {}, defaultIndex: "test", splunkSynced: false },
 };
+
+const DEFAULT_INDEX_PLANNER_SEARCH =
+  "| tstats count where earliest=-365d latest=now index=* by index sourcetype | fields - count";
+
+function inventorySearchFromCfg(cfg) {
+  return (cfg?.index_planner_search || DEFAULT_INDEX_PLANNER_SEARCH).trim();
+}
 
 function isRemoteConnectionMode(mode) {
   const m = String(mode || "local").trim().toLowerCase();
@@ -1554,8 +1602,23 @@ document.getElementById("refresh-history").addEventListener("click", loadHistory
 async function submitReplayJob(opts) {
   const { mode, items, index, engine, sequential, stopOnError, useMapping } = opts;
   if (!items.length) { alert("Select at least one item."); return null; }
+  const hecForceNow = !!document.getElementById("atk-hec-force-now")?.checked;
+  const addEl = document.getElementById("atk-hec-add-ds");
+  const hecAddDataSource = addEl ? !!addEl.checked : false;
+  let deliveryEngine = engine || document.getElementById("replay-engine").value;
+  if ((hecForceNow || hecAddDataSource) && deliveryEngine !== "hec") {
+    const ok = confirm(
+      "Separate events and data_source=totalreplay only work with delivery method " +
+      "\"Send events to Splunk via HEC (this web app)\".\n\nSwitch to Web UI HEC now?"
+    );
+    if (!ok) return null;
+    deliveryEngine = "hec";
+    document.getElementById("replay-engine").value = "hec";
+    updateEngineHint();
+  }
   document.getElementById("log").innerHTML = "";
   appendLogLine(`Submitting ${items.length} item(s)${sequential ? " (sequential)" : ""}...`);
+  appendLogLine(`Delivery method: ${deliveryEngine}`);
   setJobStatus("running", "Starting...");
   let res;
   try {
@@ -1565,9 +1628,11 @@ async function submitReplayJob(opts) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        mode, items, index, engine, sequential,
+        mode, items, index, engine: deliveryEngine, sequential,
         stop_on_error: stopOnError,
         use_index_mapping: useMapping,
+        hec_force_time_now: hecForceNow,
+        hec_add_data_source_field: hecAddDataSource,
       }),
       signal: ctrl.signal,
     });
@@ -1826,6 +1891,10 @@ async function loadIndexPlanner() {
   const inv = await loadSplunkInventoryPanel();
   const mapCount = await loadMappingsCount();
   const cfg = await fetch("/api/config").then(r => r.json());
+  const searchEl = document.getElementById("rp-inventory-search");
+  if (searchEl && !state.inventorySearchDirty) {
+    searchEl.value = inventorySearchFromCfg(cfg);
+  }
 
   const data = await fetch("/api/splunk/routing-matrix").then(r => r.json());
   if (!data.ok) {
@@ -1855,13 +1924,45 @@ document.getElementById("rp-filter").addEventListener("change", e => { rpState.s
 document.getElementById("rp-sync").addEventListener("click", async () => {
   document.getElementById("rp-sync-log").innerHTML = "";
   rpLogLine("Starting Splunk sync...");
-  const r = await fetch("/api/splunk/sync-indexes", { method: "POST" }).then(res => res.json());
+  const search = (document.getElementById("rp-inventory-search").value || "").trim();
+  const r = await fetch("/api/splunk/sync-indexes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ search: search || undefined }),
+  }).then(res => res.json());
   if (!r.ok || !r.job_id) { rpLogLine(r.error || "Sync failed"); return; }
   const es = new EventSource(`/api/replay/stream/${r.job_id}`);
   es.onmessage = e => {
     if (e.data === "__END__") { es.close(); loadRoutingCache(true); loadIndexPlanner(); return; }
     rpLogLine(e.data);
   };
+});
+document.getElementById("rp-inventory-search")?.addEventListener("input", () => {
+  state.inventorySearchDirty = true;
+});
+document.getElementById("rp-save-search")?.addEventListener("click", async () => {
+  const search = (document.getElementById("rp-inventory-search").value || "").trim();
+  const statusEl = document.getElementById("rp-search-status");
+  if (!search) {
+    statusEl.innerHTML = '<span class="text-[#d70015]">Search cannot be empty</span>';
+    return;
+  }
+  const r = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index_planner_search: search }),
+  }).then(res => res.json().catch(() => ({})));
+  if (!r.ok) {
+    statusEl.innerHTML = `<span class="text-[#d70015]">${escapeHTML(r.error || "Save failed")}</span>`;
+    return;
+  }
+  state.inventorySearchDirty = false;
+  statusEl.innerHTML = '<span class="text-[#1d7d32]">Search saved</span>';
+});
+document.getElementById("rp-reset-search")?.addEventListener("click", () => {
+  document.getElementById("rp-inventory-search").value = DEFAULT_INDEX_PLANNER_SEARCH;
+  state.inventorySearchDirty = true;
+  document.getElementById("rp-search-status").textContent = "Reset to default (click Save search to persist)";
 });
 document.getElementById("rp-auto-match").addEventListener("click", async () => {
   const r = await fetch("/api/splunk/mappings/auto-match", { method: "POST" }).then(res => res.json());
@@ -1923,10 +2024,21 @@ async function loadConfig() {
   const remote = isRemoteConnectionMode(cfg.connection_mode) || !!cfg.remote_mode;
   setConnectionModeRadio(remote);
 
-  document.getElementById("cfg-host").value = cfg.splunk_host || "";
+  document.getElementById("cfg-hec-host").value = cfg.splunk_hec_host || cfg.splunk_host || "";
+  document.getElementById("cfg-mgmt-host").value = cfg.splunk_mgmt_host || "";
   document.getElementById("cfg-port").value = cfg.splunk_port || 8088;
   document.getElementById("cfg-https").checked = !!cfg.use_https;
   document.getElementById("cfg-verify").checked = !!cfg.verify_tls;
+  document.getElementById("cfg-hec-add-ds").checked = cfg.hec_add_data_source_field !== false;
+  document.getElementById("cfg-hec-force-now").checked = !!cfg.hec_force_time_now;
+  // Attack Test (per-run overrides): default OFF (opt-in only). Do not reset after user changes.
+  if (!state.atkHecOptionsInitialized) {
+    const atkAdd = document.getElementById("atk-hec-add-ds");
+    const atkNow = document.getElementById("atk-hec-force-now");
+    if (atkAdd) atkAdd.checked = false;
+    if (atkNow) atkNow.checked = false;
+    state.atkHecOptionsInitialized = true;
+  }
   document.getElementById("cfg-index").value = cfg.default_index || "test";
   document.getElementById("cfg-tr-local").value = cfg.local_total_replay_dir || "";
   document.getElementById("cfg-local-python").value = cfg.local_python_cmd || "python3";
@@ -2046,12 +2158,19 @@ function updateSshSessionStatus(sess) {
 
 function updateConnStatus(cfg) {
   const el = document.getElementById("conn-status");
-  if (!cfg.splunk_host) {
+  const hecHost = cfg.splunk_hec_host || cfg.splunk_host;
+  const mgmtHost = cfg.splunk_mgmt_host || hecHost;
+  if (!hecHost) {
     el.innerHTML = '<span class="text-[#9a6b00]">Splunk not configured</span>';
     return;
   }
-  const base = `${cfg.use_https ? "https" : "http"}://${cfg.splunk_host}:${cfg.splunk_port}`;
-  const parts = [cfg.remote_mode ? "Remote" : "Local", base];
+  const hecBase = `${cfg.use_https ? "https" : "http"}://${hecHost}:${cfg.splunk_port}`;
+  const mgmtHttps = cfg.splunk_mgmt_use_https !== false;
+  const mgmtBase = mgmtHost
+    ? `${mgmtHttps ? "https" : "http"}://${mgmtHost}:${cfg.splunk_mgmt_port || 8089}`
+    : "";
+  const parts = [cfg.remote_mode ? "Remote" : "Local", `HEC ${hecBase}`];
+  if (mgmtBase && mgmtBase !== hecBase) parts.push(`REST ${mgmtBase}`);
   if (cfg.ssh_tunnel?.connected) parts.push(`tunnel :${cfg.ssh_tunnel.local_port}`);
   el.textContent = parts.join(" | ");
 }
@@ -2061,10 +2180,14 @@ function buildSaveBody() {
   const remote = checked ? checked.value === "remote" : state.remote;
   const body = {
     connection_mode: remote ? "remote" : "local",
-    splunk_host: document.getElementById("cfg-host").value.trim(),
+    splunk_hec_host: document.getElementById("cfg-hec-host").value.trim(),
+    splunk_mgmt_host: document.getElementById("cfg-mgmt-host").value.trim(),
+    splunk_host: document.getElementById("cfg-hec-host").value.trim(),
     splunk_port: parseInt(document.getElementById("cfg-port").value) || 8088,
     use_https: document.getElementById("cfg-https").checked,
     verify_tls: document.getElementById("cfg-verify").checked,
+    hec_add_data_source_field: document.getElementById("cfg-hec-add-ds").checked,
+    hec_force_time_now: document.getElementById("cfg-hec-force-now").checked,
     default_index: document.getElementById("cfg-index").value.trim() || "test",
     local_total_replay_dir: document.getElementById("cfg-tr-local").value.trim(),
     local_python_cmd: document.getElementById("cfg-local-python").value.trim() || "python3",
@@ -2107,7 +2230,8 @@ document.getElementById("cfg-save").addEventListener("click", async () => {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) {
-    msg.innerHTML = `<span class="text-[#d70015]">${escapeHTML(data.error || "Save failed — check HEC token and settings")}</span>`;
+    const detail = data.error || (res.status ? `Server error (HTTP ${res.status})` : "Save failed");
+    msg.innerHTML = `<span class="text-[#d70015]">${escapeHTML(detail)}</span>`;
     return;
   }
   if (isRemoteConnectionMode(data.connection_mode)) {

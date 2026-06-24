@@ -17,6 +17,7 @@ import threading
 import datetime as dt
 from pathlib import Path
 from typing import Any, Callable, Optional
+from datetime import datetime, timezone
 
 import yaml
 import requests
@@ -28,6 +29,12 @@ from apscheduler.triggers.cron import CronTrigger
 from ssh_connect import ssh_credentials_hint
 from ssh_tunnel import close_tunnel, ensure_tunnel, tunnel_status
 from splunk_client import fetch_splunk_index_names, test_rest_connection
+from splunk_transport import (
+    DEFAULT_INDEX_PLANNER_SEARCH,
+    normalize_splunk_host,
+    resolve_hec_host,
+    resolve_mgmt_host,
+)
 from local_replay import (
     build_cached_catalog_local,
     local_paths,
@@ -141,6 +148,8 @@ def load_config() -> dict:
         return json.loads(CONFIG_PATH.read_text())
     return {
         "splunk_host": "",
+        "splunk_hec_host": "",
+        "splunk_mgmt_host": "",
         "splunk_port": 8088,
         "hec_token": "",
         "use_https": False,
@@ -169,6 +178,9 @@ def load_config() -> dict:
         "splunk_username": "",
         "splunk_password": "",
         "use_index_mapping": True,
+        "hec_force_time_now": False,
+        "hec_add_data_source_field": True,
+        "index_planner_search": DEFAULT_INDEX_PLANNER_SEARCH,
     }
 
 
@@ -228,6 +240,55 @@ def config_meta() -> dict[str, Any]:
     }
 
 
+def apply_splunk_cloud_defaults(cfg: dict) -> dict:
+    """
+    Splunk Cloud HEC uses HTTPS on port 443 (not plain HTTP :8088).
+    Auto-apply when hostname looks like *.splunkcloud.com.
+    """
+    hec_host = normalize_splunk_host(
+        str(cfg.get("splunk_hec_host") or cfg.get("splunk_host") or "").strip()
+    )
+    mgmt_host = normalize_splunk_host(
+        str(cfg.get("splunk_mgmt_host") or cfg.get("splunk_host") or "").strip()
+    )
+    if hec_host:
+        cfg["splunk_hec_host"] = hec_host
+        cfg["splunk_host"] = hec_host
+    if mgmt_host:
+        cfg["splunk_mgmt_host"] = mgmt_host
+    if hec_host and "splunkcloud.com" in hec_host.lower():
+        cfg["use_https"] = True
+        port = int(cfg.get("splunk_port") or 8088)
+        if port == 8088:
+            cfg["splunk_port"] = 443
+        if cfg.get("verify_tls") is None:
+            cfg["verify_tls"] = True
+    if mgmt_host and "splunkcloud.com" in mgmt_host.lower():
+        cfg["splunk_mgmt_use_https"] = True
+        if cfg.get("verify_tls") is None:
+            cfg["verify_tls"] = True
+    return cfg
+
+
+def _format_hec_request_error(exc: BaseException, cfg: dict) -> str:
+    err = str(exc)
+    host = resolve_hec_host(cfg)
+    if "nodename nor servname" in err.lower() or "failed to resolve" in err.lower() or "name or service not known" in err.lower():
+        return (
+            f"DNS lookup failed for Splunk host '{host}'. "
+            "Check the HEC hostname in Splunk Cloud (Settings → Data Inputs → HTTP Event Collector). "
+            "Use only the hostname (e.g. http-inputs-<stack>.splunkcloud.com), enable HTTPS, port 443. "
+            "Ensure this machine has internet/DNS access and any required VPN is connected."
+        )
+    if cfg.get("ssh_enabled") and "timed out" in err.lower():
+        err += (
+            f" — Splunk at {host}:{cfg.get('splunk_port')} may be unreachable "
+            f"from SSH host {cfg.get('ssh_host')}. Try unchecking 'SSH tunnel for HEC' if "
+            "your machine can reach Splunk directly."
+        )
+    return err
+
+
 def validate_hec_token(token: str) -> tuple[bool, Optional[str]]:
     """Return (ok, error_message). Rejects URLs and obvious non-tokens."""
     t = (token or "").strip()
@@ -275,14 +336,7 @@ def _hec_auth_test(
             verify=bool(cfg.get("verify_tls")), timeout=12,
         )
     except requests.RequestException as e:
-        err = str(e)
-        if cfg.get("ssh_enabled") and "timed out" in err.lower():
-            err += (
-                f" — Splunk at {cfg.get('splunk_host')}:{cfg.get('splunk_port')} may be unreachable "
-                f"from SSH host {cfg.get('ssh_host')}. Try unchecking 'SSH tunnel for HEC' if "
-                "your Mac can reach Splunk directly, or use Remote TOTAL-REPLAY CLI."
-            )
-        return {"ok": False, "error": err, "token_valid": False}
+        return {"ok": False, "error": _format_hec_request_error(e, cfg), "token_valid": False}
 
     if r.status_code == 200:
         return {"ok": True, "status": 200, "token_valid": True, "index": index_name}
@@ -538,10 +592,11 @@ def _splunk_endpoint(
             return True, msg, "127.0.0.1", local_port
     else:
         close_tunnel()
-    host = cfg.get("splunk_host") or ""
+    cfg = apply_splunk_cloud_defaults(dict(cfg))
+    host = resolve_hec_host(cfg)
     port = int(cfg.get("splunk_port") or 8088)
     if not host:
-        return False, "Splunk host not configured", None, None
+        return False, "Splunk HEC host not configured", None, None
     return True, "direct", host, port
 
 
@@ -555,6 +610,159 @@ def _hec_url(
         raise RuntimeError(msg or "Splunk endpoint unavailable")
     scheme = "https" if cfg.get("use_https") else "http"
     return f"{scheme}://{host}:{port}{path_suffix}"
+
+
+_RE_XML_SYSTEM_TIME = re.compile(r"TimeCreated\s+SystemTime=['\"]([^'\"]+)['\"]", re.I)
+_RE_XML_UTC_TIME = re.compile(r"<Data\s+Name=['\"]UtcTime['\"]>([^<]+)</Data>", re.I)
+_RE_ISO_PREFIX = re.compile(r"^\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)")
+_RE_XML_EVENT_BLOCK = re.compile(r"(<Event\b[\s\S]*?</Event>)", re.I)
+_RE_XML_EVENT_START = re.compile(r"(?=<Event\b)", re.I)
+
+
+def _parse_time_to_epoch(ts: str) -> Optional[float]:
+    s = (ts or "").strip()
+    if not s:
+        return None
+    try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        pass
+    # Common TOTAL-REPLAY / Sysmon UtcTime format: "YYYY-MM-DD HH:MM:SS.mmm"
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).timestamp()
+        except Exception:
+            continue
+    return None
+
+
+def _best_effort_event_time(line: str) -> Optional[float]:
+    """Extract event time from common log formats (best-effort)."""
+    if not line:
+        return None
+    m = _RE_ISO_PREFIX.search(line)
+    if m:
+        return _parse_time_to_epoch(m.group(1))
+    m = _RE_XML_SYSTEM_TIME.search(line)
+    if m:
+        return _parse_time_to_epoch(m.group(1))
+    m = _RE_XML_UTC_TIME.search(line)
+    if m:
+        return _parse_time_to_epoch(m.group(1))
+    return None
+
+
+def _split_xml_windows_events(text: str) -> list[str]:
+    """Split Sysmon/Windows XML where records are separated by </Event>."""
+    s = (text or "").strip()
+    if not s or "<Event" not in s or "</Event>" not in s:
+        return []
+    parts = re.split(r"</Event\s*>", s, flags=re.I)
+    out: list[str] = []
+    for part in parts:
+        part = part.strip()
+        if not part or not re.search(r"<\s*Event\b", part, re.I):
+            continue
+        if not part.lower().endswith("</event>"):
+            part = part + "</Event>"
+        out.append(part)
+    return out
+
+
+def _split_payload_records(text: str) -> list[str]:
+    """
+    Split incoming payload into per-event records.
+
+    Handles:
+    - Windows XML events (<Event>...</Event>), including concatenated blocks
+    - line-delimited logs
+    - JSON arrays (each element -> one event)
+    """
+    s = (text or "").strip()
+    if not s:
+        return []
+
+    xml_records = _split_xml_windows_events(s)
+    if xml_records:
+        return xml_records
+
+    # JSON array payload
+    if s.startswith("["):
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return [
+                    json.dumps(item, separators=(",", ":")) if not isinstance(item, str) else item
+                    for item in parsed
+                ]
+        except Exception:
+            pass
+
+    # Regex XML blocks (backup)
+    if "<Event" in s and "</Event>" in s:
+        blocks = [m.strip() for m in _RE_XML_EVENT_BLOCK.findall(s) if m.strip()]
+        if blocks:
+            return blocks
+
+    # Default: one non-empty line = one event
+    return [ln for ln in text.splitlines() if ln.strip()]
+
+
+def _build_hec_event_json_lines(
+    payload: bytes,
+    *,
+    index_name: str,
+    source: str,
+    sourcetype: str,
+    host_label: str,
+    force_time_now: bool,
+    add_data_source_field: bool,
+) -> list[str]:
+    """Build one Splunk HEC /event JSON object per log record."""
+    try:
+        text = payload.decode("utf-8", errors="replace")
+    except Exception:
+        text = ""
+    now = time.time()
+    fields = {"data_source": "totalreplay"} if add_data_source_field else None
+
+    records = _split_payload_records(text)
+    out_lines: list[str] = []
+    for i, ln in enumerate(records):
+        evt_host = f"{host_label}-{i + 1}" if len(records) > 1 else host_label
+        evt: dict[str, Any] = {
+            "event": ln,
+            "index": index_name,
+            "sourcetype": sourcetype or "_json",
+            "source": source or "totalreplay-ui",
+            "host": evt_host,
+        }
+        if fields:
+            evt["fields"] = fields
+        if force_time_now:
+            evt["time"] = now
+        else:
+            t = _best_effort_event_time(ln)
+            if t is not None:
+                evt["time"] = t
+        out_lines.append(json.dumps(evt, separators=(",", ":")))
+
+    if not out_lines:
+        evt: dict[str, Any] = {
+            "event": "",
+            "index": index_name,
+            "sourcetype": sourcetype or "_json",
+            "source": source or "totalreplay-ui",
+            "host": host_label,
+        }
+        if fields:
+            evt["fields"] = fields
+        if force_time_now:
+            evt["time"] = now
+        out_lines = [json.dumps(evt, separators=(",", ":"))]
+    return out_lines
 
 
 def _download_to_cache(url: str, job_id: str) -> Path:
@@ -824,29 +1032,53 @@ def _post_to_hec(cfg: dict, index_name: str, source: str, sourcetype: str,
     ok, msg, _, _ = _splunk_endpoint(cfg, log_fn=log_fn)
     if not ok:
         return False, msg, 0
+    force_now = bool(cfg.get("hec_force_time_now", False))
+    add_field = bool(cfg.get("hec_add_data_source_field", False))
+
     try:
-        url = _hec_url(cfg, log_fn=log_fn)
+        url = _hec_url(cfg, path_suffix="/services/collector/event", log_fn=log_fn)
     except RuntimeError as e:
         return False, str(e), 0
-    headers = {"Authorization": f"Splunk {cfg['hec_token']}"}
-    params = {
-        "index": index_name,
-        "sourcetype": sourcetype or "_json",
-        "source": source or "totalreplay-ui",
-        "host": host_label,
+    headers = {
+        "Authorization": f"Splunk {cfg['hec_token']}",
+        "Content-Type": "application/json",
     }
-    try:
-        r = requests.post(
-            url, headers=headers, params=params, data=payload,
-            verify=bool(cfg.get("verify_tls")), timeout=60,
-        )
-    except requests.RequestException as e:
-        return False, f"network error: {e}", 0
-
-    event_count = _estimate_hec_event_count(payload)
-    if r.status_code == 200:
-        return True, "ok", event_count
-    return False, f"HTTP {r.status_code}: {r.text.strip()[:200]}", 0
+    event_lines = _build_hec_event_json_lines(
+        payload,
+        index_name=index_name,
+        source=source,
+        sourcetype=sourcetype,
+        host_label=host_label,
+        force_time_now=force_now,
+        add_data_source_field=add_field,
+    )
+    if log_fn:
+        log_fn(f"HEC: split payload into {len(event_lines)} event(s); posting each separately")
+    sent = 0
+    last_err = ""
+    for i, line in enumerate(event_lines, 1):
+        try:
+            r = requests.post(
+                url,
+                headers=headers,
+                data=(line + "\n").encode("utf-8"),
+                verify=bool(cfg.get("verify_tls")),
+                timeout=60,
+            )
+        except requests.RequestException as e:
+            return False, _format_hec_request_error(e, cfg), sent
+        if r.status_code == 200:
+            sent += 1
+            if log_fn and len(event_lines) <= 20:
+                log_fn(f"  HEC event {i}/{len(event_lines)} OK")
+            continue
+        last_err = f"HTTP {r.status_code}: {r.text.strip()[:200]}"
+        if log_fn:
+            log_fn(f"  HEC event {i}/{len(event_lines)} FAIL: {last_err}")
+        return False, last_err, sent
+    if sent == 0:
+        return False, "no events sent", 0
+    return True, f"ok ({sent} events)", sent
 
 
 def replay_items_remote_hec(
@@ -858,10 +1090,11 @@ def replay_items_remote_hec(
     finalize: bool = True,
     use_index_mapping: bool = False,
     detection_catalog: Optional[list[dict]] = None,
+    cfg_override: Optional[dict] = None,
 ) -> dict:
     """Replay by fetching payloads over SSH and posting to Splunk HEC from the web app."""
-    cfg = load_config()
-    if not cfg.get("splunk_host") or not cfg.get("hec_token"):
+    cfg = cfg_override or load_config()
+    if not resolve_hec_host(cfg) or not cfg.get("hec_token"):
         return {"status": "failed", "error": "Splunk host or HEC token not configured"}
 
     results: list[dict] = []
@@ -984,7 +1217,9 @@ def replay_local_cli(
     finalize: bool = True,
     use_index_mapping: bool = False,
     detection_catalog: Optional[list[dict]] = None,
+    cfg_override: Optional[dict] = None,
 ) -> dict:
+    # cfg_override is accepted for API compatibility with HEC engines; CLI ignores it.
     cfg = load_config()
     cli_mode = mode
     if mode == "detections":
@@ -1043,7 +1278,9 @@ def replay_remote_cli(
     finalize: bool = True,
     use_index_mapping: bool = False,
     detection_catalog: Optional[list[dict]] = None,
+    cfg_override: Optional[dict] = None,
 ) -> dict:
+    # cfg_override is accepted for API compatibility with HEC engines; CLI ignores it.
     cfg = load_config()
     cli_mode = mode
     if mode == "detections":
@@ -1109,14 +1346,15 @@ def replay_items(
     finalize: bool = True,
     use_index_mapping: bool = False,
     detection_catalog: Optional[list[dict]] = None,
+    cfg_override: Optional[dict] = None,
 ) -> dict:
     """
     items shape depends on mode:
       detections: [{"detection_name": "...", "detection_id": "..."}]
       files:      [{"path": "datasets/...", "abs_path": "/abs/...", "source": "...", "sourcetype": "..."}]
     """
-    cfg = load_config()
-    if not cfg.get("splunk_host") or not cfg.get("hec_token"):
+    cfg = cfg_override or load_config()
+    if not resolve_hec_host(cfg) or not cfg.get("hec_token"):
         return {"status": "failed", "error": "Splunk host or HEC token not configured"}
 
     results: list[dict] = []
@@ -1227,6 +1465,7 @@ def replay_items_sequential(
     stop_on_error: bool = False,
     use_index_mapping: bool = False,
     detection_catalog: Optional[list[dict]] = None,
+    cfg_override: Optional[dict] = None,
 ) -> dict:
     """Run each selected item one after another with progress in the live log."""
     total = len(items)
@@ -1242,7 +1481,7 @@ def replay_items_sequential(
         _emit(job_id, f"\n--- [{i}/{total}] {label} ---")
         item_index = index_name
         if use_index_mapping:
-            cfg = load_config()
+            cfg = cfg_override or load_config()
             item_index = resolve_index_for_item(
                 cfg, mode, it, index_name, True, catalog_detections=detection_catalog,
             )
@@ -1253,6 +1492,7 @@ def replay_items_sequential(
                 job_id, mode, [it], item_index, finalize=False,
                 use_index_mapping=use_index_mapping,
                 detection_catalog=detection_catalog,
+                cfg_override=cfg_override,
             )
         except Exception as e:
             _emit(job_id, f"  FAIL: crashed: {e}")
@@ -1300,6 +1540,8 @@ def run_replay_job(
     sequential: bool = False,
     stop_on_error: bool = False,
     use_index_mapping: Optional[bool] = None,
+    hec_force_time_now: Optional[bool] = None,
+    hec_add_data_source_field: Optional[bool] = None,
 ) -> str:
     """Launch a replay in a background thread, return job_id."""
     job_id = str(uuid.uuid4())
@@ -1308,23 +1550,28 @@ def run_replay_job(
         _log_queues[job_id] = q
 
     cfg = load_config()
+    cfg_job = dict(cfg)
+    if hec_force_time_now is not None:
+        cfg_job["hec_force_time_now"] = bool(hec_force_time_now)
+    if hec_add_data_source_field is not None:
+        cfg_job["hec_add_data_source_field"] = bool(hec_add_data_source_field)
     if use_index_mapping is None:
-        use_index_mapping = bool(cfg.get("use_index_mapping", True))
+        use_index_mapping = bool(cfg_job.get("use_index_mapping", True))
     if engine is None:
-        engine = cfg.get("replay_engine", "hec")
+        engine = cfg_job.get("replay_engine", "hec")
     detection_catalog: Optional[list[dict]] = None
     if mode == "detections":
-        detection_catalog = _detection_catalog_for_cfg(cfg)
+        detection_catalog = _detection_catalog_for_cfg(cfg_job)
     enriched_items = (
         enrich_replay_items(items, detection_catalog)
         if mode == "detections"
         else [dict(it) for it in items]
     )
-    if is_remote_mode(cfg) and engine == "remote_cli":
+    if is_remote_mode(cfg_job) and engine == "remote_cli":
         replay_fn = replay_remote_cli
-    elif is_remote_mode(cfg) and engine == "hec":
+    elif is_remote_mode(cfg_job) and engine == "hec":
         replay_fn = replay_items_remote_hec
-    elif not is_remote_mode(cfg) and engine == "local_cli":
+    elif not is_remote_mode(cfg_job) and engine == "local_cli":
         replay_fn = replay_local_cli
     else:
         replay_fn = replay_items
@@ -1335,7 +1582,7 @@ def run_replay_job(
             "INSERT INTO history (id, started_at, status, index_name, splunk_host, items_json) "
             "VALUES (?, ?, 'running', ?, ?, ?)",
             (job_id, dt.datetime.utcnow().isoformat(), index_name,
-             cfg.get("splunk_host", ""),
+             resolve_hec_host(cfg),
              json.dumps({
                  "engine": engine,
                  "mode": mode,
@@ -1345,6 +1592,8 @@ def run_replay_job(
                  "sequential": sequential,
                  "stop_on_error": stop_on_error,
                  "use_index_mapping": use_index_mapping,
+                 "hec_force_time_now": bool(cfg_job.get("hec_force_time_now", False)),
+                 "hec_add_data_source_field": bool(cfg_job.get("hec_add_data_source_field", True)),
              })),
         )
 
@@ -1354,16 +1603,24 @@ def run_replay_job(
         titles = _replay_titles_from_items(enriched_items)
         title_note = f" — {titles[0]}" if len(titles) == 1 else (f" — {len(titles)} detections" if titles else "")
         _emit(job_id, f"Job started (engine={engine}, mode={mode}, items={len(enriched_items)}{seq_note}{map_note}){title_note}")
+        if engine in ("remote_cli", "local_cli"):
+            _emit(
+                job_id,
+                "NOTE: CLI delivery sends via total_replay.py on the host. "
+                "For separate Splunk events + data_source=totalreplay, use engine=hec (Web UI HEC).",
+            )
+        elif engine == "hec":
+            _emit(job_id, "HEC mode: each XML <Event> block is posted as its own Splunk event.")
         try:
-            ok_tok, tok_err = validate_hec_token(cfg.get("hec_token", ""))
+            ok_tok, tok_err = validate_hec_token(cfg_job.get("hec_token", ""))
             if not ok_tok:
                 _emit(job_id, f"FAIL: {tok_err}")
                 _emit(job_id, "__END__")
                 result = {"status": "failed", "items": [], "error": tok_err}
             else:
-                if engine in ("hec", "remote_cli", "local_cli") or cfg.get("ssh_enabled"):
+                if engine in ("hec", "remote_cli", "local_cli") or cfg_job.get("ssh_enabled"):
                     _emit(job_id, "Checking Splunk HEC connectivity...")
-                    hec = _hec_auth_test(cfg, index_name, log_fn=lambda m: _emit(job_id, m))
+                    hec = _hec_auth_test(cfg_job, index_name, log_fn=lambda m: _emit(job_id, m))
                     if not hec.get("ok"):
                         _emit(job_id, f"FAIL: HEC check failed: {hec.get('error') or hec.get('body')}")
                         _emit(job_id, "__END__")
@@ -1380,12 +1637,14 @@ def run_replay_job(
                                 stop_on_error=stop_on_error,
                                 use_index_mapping=use_index_mapping,
                                 detection_catalog=detection_catalog,
+                                cfg_override=cfg_job,
                             )
                         else:
                             result = replay_fn(
                                 job_id, mode, enriched_items, index_name,
                                 use_index_mapping=use_index_mapping,
                                 detection_catalog=detection_catalog,
+                                cfg_override=cfg_job,
                             )
                 else:
                     if sequential and len(enriched_items) > 1:
@@ -1394,12 +1653,14 @@ def run_replay_job(
                             stop_on_error=stop_on_error,
                             use_index_mapping=use_index_mapping,
                             detection_catalog=detection_catalog,
+                            cfg_override=cfg_job,
                         )
                     else:
                         result = replay_fn(
                             job_id, mode, enriched_items, index_name,
                             use_index_mapping=use_index_mapping,
                             detection_catalog=detection_catalog,
+                            cfg_override=cfg_job,
                         )
         except Exception as e:
             _emit(job_id, f"job crashed: {e}")
@@ -1488,6 +1749,10 @@ def api_config():
     if request.method == "GET":
         cfg = load_config()
         cfg_redacted = dict(cfg)
+        if not cfg_redacted.get("splunk_hec_host") and cfg_redacted.get("splunk_host"):
+            cfg_redacted["splunk_hec_host"] = cfg_redacted["splunk_host"]
+        if not cfg_redacted.get("index_planner_search"):
+            cfg_redacted["index_planner_search"] = DEFAULT_INDEX_PLANNER_SEARCH
         if cfg_redacted.get("hec_token"):
             tok = cfg_redacted["hec_token"]
             cfg_redacted["hec_token_preview"] = (tok[:4] + "..." + tok[-4:]) if len(tok) > 8 else "set"
@@ -1521,12 +1786,13 @@ def api_config():
     ssh_fields_changed = any(
         k in body for k in (
             "ssh_enabled", "ssh_host", "ssh_port", "ssh_user", "ssh_password",
-            "ssh_key_path", "ssh_remote_host", "splunk_host", "splunk_port",
+            "ssh_key_path", "ssh_remote_host", "splunk_host", "splunk_hec_host",
+            "splunk_mgmt_host", "splunk_port",
             "connection_mode", "remote_total_replay_dir",
         )
     )
     for k in (
-        "splunk_host", "splunk_port", "hec_token", "use_https", "verify_tls",
+        "splunk_host", "splunk_hec_host", "splunk_mgmt_host", "splunk_port", "hec_token", "use_https", "verify_tls",
         "default_index", "security_content_path", "attack_data_path",
         "ssh_enabled", "ssh_host", "ssh_port", "ssh_user", "ssh_password",
         "ssh_key_path", "ssh_remote_host",
@@ -1536,9 +1802,20 @@ def api_config():
         "replay_engine", "splunk_mgmt_port", "splunk_mgmt_use_https", "splunk_mgmt_token",
         "splunk_username", "splunk_password",
         "use_index_mapping",
+        "hec_force_time_now", "hec_add_data_source_field",
+        "index_planner_search",
     ):
         if k in body:
             cfg[k] = body[k]
+    if "splunk_hec_host" in body:
+        cfg["splunk_hec_host"] = normalize_splunk_host(str(body.get("splunk_hec_host") or ""))
+        cfg["splunk_host"] = cfg["splunk_hec_host"]
+    elif "splunk_host" in body:
+        cfg["splunk_host"] = normalize_splunk_host(str(body.get("splunk_host") or ""))
+        cfg["splunk_hec_host"] = cfg["splunk_host"]
+    if "splunk_mgmt_host" in body:
+        cfg["splunk_mgmt_host"] = normalize_splunk_host(str(body.get("splunk_mgmt_host") or ""))
+    cfg = apply_splunk_cloud_defaults(cfg)
     if "connection_mode" in body:
         cfg["connection_mode"] = normalize_connection_mode(body.get("connection_mode"))
     if is_remote_mode(cfg):
@@ -1549,21 +1826,23 @@ def api_config():
                 "error": f"{ssh_err} Settings are stored in {CONFIG_PATH.resolve()}.",
             }), 400
     mgmt_tok = (cfg.get("splunk_mgmt_token") or "").strip()
-    if mgmt_tok:
+    if "splunk_mgmt_token" in body and mgmt_tok:
         ok_mt, mt_err = validate_hec_token(mgmt_tok)
         if not ok_mt:
             return jsonify({
                 "ok": False,
                 "error": f"Management API token (8089): {mt_err}",
             }), 400
-    hec_tok = (cfg.get("hec_token") or "").strip()
-    if hec_tok or "hec_token" in body:
-        ok_tok, tok_err = validate_hec_token(hec_tok)
-        if not ok_tok:
-            return jsonify({
-                "ok": False,
-                "error": f"{tok_err} Enter the correct token in the HEC token field and click Save settings.",
-            }), 400
+    if "hec_token" in body:
+        hec_tok = (body.get("hec_token") or "").strip()
+        if hec_tok:
+            ok_tok, tok_err = validate_hec_token(hec_tok)
+            if not ok_tok:
+                return jsonify({
+                    "ok": False,
+                    "error": f"{tok_err} Enter the correct token in the HEC token field and click Save settings.",
+                }), 400
+            cfg["hec_token"] = hec_tok
     save_config(cfg)
     if ssh_fields_changed:
         close_tunnel()
@@ -1825,10 +2104,14 @@ def api_replay():
     use_map = body.get("use_index_mapping")
     if use_map is None:
         use_map = load_config().get("use_index_mapping", True)
+    hec_force_now = body.get("hec_force_time_now")
+    hec_add_ds = body.get("hec_add_data_source_field")
     job_id = run_replay_job(
         mode, items, index_name, engine=engine,
         sequential=sequential, stop_on_error=stop_on_error,
         use_index_mapping=bool(use_map),
+        hec_force_time_now=(bool(hec_force_now) if hec_force_now is not None else None),
+        hec_add_data_source_field=(bool(hec_add_ds) if hec_add_ds is not None else None),
     )
     return jsonify({"ok": True, "job_id": job_id, "sequential": sequential, "count": len(items)})
 
@@ -1946,8 +2229,8 @@ def api_schedules():
 
 def _splunk_sync_precheck(cfg: dict) -> Optional[str]:
     """Validate saved Splunk HEC + REST settings before index sync."""
-    if not (cfg.get("splunk_host") or "").strip():
-        return "Splunk host is not configured. Save Settings first."
+    if not resolve_mgmt_host(cfg):
+        return "Splunk management API host is not configured. Save Settings first."
     mgmt_token = (cfg.get("splunk_mgmt_token") or "").strip()
     hec_token = (cfg.get("hec_token") or "").strip()
     user = (cfg.get("splunk_username") or "").strip()
@@ -1988,6 +2271,8 @@ def api_splunk_sync_indexes():
     err = _splunk_sync_precheck(cfg)
     if err:
         return jsonify({"ok": False, "error": err}), 400
+    body = request.get_json(silent=True) or {}
+    search_override = (body.get("search") or "").strip() or None
     job_id = str(uuid.uuid4())
     q: queue.Queue[str] = queue.Queue()
     with _log_queues_lock:
@@ -1995,7 +2280,11 @@ def api_splunk_sync_indexes():
 
     def _worker() -> None:
         try:
-            result = sync_splunk_inventory(cfg, log_fn=lambda m: _emit(job_id, m))
+            result = sync_splunk_inventory(
+                cfg,
+                search=search_override,
+                log_fn=lambda m: _emit(job_id, m),
+            )
             _emit(job_id, f"OK: stored {result['count']} index/sourcetype pairs")
             _emit(job_id, "__END__")
         except Exception as e:

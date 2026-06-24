@@ -65,8 +65,8 @@ def get_meta(key: str) -> Optional[str]:
     return row["value"] if row else None
 
 
-def sync_splunk_inventory(cfg: dict, *, log_fn=None) -> dict[str, Any]:
-    pairs = fetch_index_sourcetypes(cfg, log_fn=log_fn)
+def sync_splunk_inventory(cfg: dict, *, search: Optional[str] = None, log_fn=None) -> dict[str, Any]:
+    pairs = fetch_index_sourcetypes(cfg, search=search, log_fn=log_fn)
     now = dt.datetime.utcnow().isoformat()
     with _conn() as c:
         c.execute("DELETE FROM splunk_index_sourcetypes")

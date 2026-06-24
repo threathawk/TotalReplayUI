@@ -1,5 +1,7 @@
 {
   "splunk_host": "192.168.1.100",
+  "splunk_hec_host": "192.168.1.100",
+  "splunk_mgmt_host": "",
   "splunk_port": 8088,
   "hec_token": "",
   "use_https": false,
@@ -26,5 +28,6 @@
   "splunk_mgmt_token": "",
   "splunk_username": "",
   "use_index_mapping": true,
-  "splunk_mgmt_use_https": true
+  "splunk_mgmt_use_https": true,
+  "index_planner_search": "| tstats count where earliest=-365d latest=now index=* by index sourcetype | fields - count"
 }
